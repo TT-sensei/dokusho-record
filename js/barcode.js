@@ -1,95 +1,145 @@
 /* ============================================================
  * barcode.js
  * カメラ映像からISBN(EAN-13)バーコードを読み取る。
- * ブラウザ標準の BarcodeDetector API を使用する。
- * 非対応環境では isSupported() が false を返すので、
- * 呼び出し側は必ず手入力へ誘導すること。
+ * QuaggaJSを使用。学校のiPad/スマートフォン等での
+ * ブラウザ依存を減らすため、BarcodeDetector APIは使用しない。
  * ============================================================ */
 (function (global) {
   'use strict';
 
   var stream = null;
-  var rafId = null;
-  var detector = null;
   var stopped = true;
+  var target = null;
+  var onDetectCallback = null;
+  var onErrorCallback = null;
+  var lastValue = null;
+  var lastDetectedAt = 0;
 
   function isSupported() {
-    return typeof global.BarcodeDetector !== 'undefined';
+    return !!(global.Quagga && global.navigator && global.navigator.mediaDevices && global.navigator.mediaDevices.getUserMedia);
   }
 
-  /**
-   * カメラを起動し、videoEl に映像を流しながらバーコード検出を続ける。
-   * @param {HTMLVideoElement} videoEl
-   * @param {(result:{rawValue:string})=>void} onDetect 検出成功時(1回のみ呼ばれ、以後は自動停止)
-   * @param {(err:Error)=>void} onError カメラ起動失敗などのエラー
-   */
   function start(videoEl, onDetect, onError) {
-    stop(); // 念のため既存のスキャンを止める
+    stop();
+    target = videoEl;
+    onDetectCallback = onDetect;
+    onErrorCallback = onError;
+    lastValue = null;
+    lastDetectedAt = 0;
     stopped = false;
 
-    if (!isSupported()) {
-      onError(new Error('BarcodeDetector未対応'));
+    if (!global.Quagga) {
+      onError(new Error('QuaggaJSを読み込めませんでした'));
+      return;
+    }
+    if (!global.navigator.mediaDevices || !global.navigator.mediaDevices.getUserMedia) {
+      onError(new Error('このブラウザではカメラを利用できません'));
       return;
     }
 
-    try {
-      detector = new global.BarcodeDetector({ formats: ['ean_13'] });
-    } catch (e) {
-      onError(e);
-      return;
-    }
+    var container = videoEl.parentElement || videoEl;
+    container.classList.add('barcode-scanner-container');
 
-    var constraints = { video: { facingMode: { ideal: 'environment' } }, audio: false };
-    global.navigator.mediaDevices.getUserMedia(constraints)
-      .then(function (mediaStream) {
-        if (stopped) {
-          mediaStream.getTracks().forEach(function (t) { t.stop(); });
-          return;
+    // Quaggaが生成するvideo/canvasを既存の表示領域に配置する。
+    // 既存video要素は残してもよいが、Quaggaのvideoを優先して表示する。
+    var reader = document.createElement('div');
+    reader.id = 'quagga-reader';
+    reader.style.width = '100%';
+    reader.style.height = '100%';
+    reader.style.position = 'relative';
+    reader.style.overflow = 'hidden';
+    videoEl.style.display = 'none';
+    container.appendChild(reader);
+
+    global.Quagga.init({
+      inputStream: {
+        name: 'Live',
+        type: 'LiveStream',
+        target: reader,
+        constraints: {
+          facingMode: { ideal: 'environment' },
+          width: { min: 640 },
+          height: { min: 480 },
+          aspectRatio: { min: 1, max: 2 }
+        },
+        area: {
+          top: '20%',
+          right: '10%',
+          left: '10%',
+          bottom: '20%'
         }
-        stream = mediaStream;
-        videoEl.srcObject = stream;
-        return videoEl.play();
-      })
-      .then(function () {
-        if (!stopped) scanLoop(videoEl, onDetect, onError);
-      })
-      .catch(function (err) {
-        onError(err);
-      });
+      },
+      locator: {
+        patchSize: 'medium',
+        halfSample: true
+      },
+      numOfWorkers: 2,
+      frequency: 10,
+      decoder: {
+        readers: ['ean_reader']
+      },
+      locate: true
+    }, function (err) {
+      if (err) {
+        cleanupReader();
+        stopped = true;
+        onErrorCallback && onErrorCallback(err);
+        return;
+      }
+      if (stopped) {
+        global.Quagga.stop();
+        cleanupReader();
+        return;
+      }
+      global.Quagga.start();
+      bindDetected();
+    });
   }
 
-  function scanLoop(videoEl, onDetect, onError) {
-    if (stopped || !detector) return;
-    detector.detect(videoEl)
-      .then(function (barcodes) {
-        if (stopped) return;
-        if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-          var value = barcodes[0].rawValue;
-          stop();
-          onDetect({ rawValue: value });
-          return;
-        }
-        rafId = global.requestAnimationFrame(function () { scanLoop(videoEl, onDetect, onError); });
-      })
-      .catch(function (err) {
-        // 検出処理自体の失敗はスキャン継続を試みる(1回の失敗で止めない)
-        if (!stopped) {
-          rafId = global.requestAnimationFrame(function () { scanLoop(videoEl, onDetect, onError); });
-        }
-      });
+  function bindDetected() {
+    global.Quagga.offDetected(handleDetected);
+    global.Quagga.onDetected(handleDetected);
+  }
+
+  function handleDetected(result) {
+    if (stopped || !result || !result.codeResult) return;
+
+    var value = result.codeResult.code || '';
+    // ISBN-13として扱える13桁だけを受け付ける。
+    value = value.replace(/[^0-9]/g, '');
+    if (value.length !== 13) return;
+
+    // 同じバーコードの連続検出による多重処理を防止。
+    var now = Date.now();
+    if (value === lastValue && now - lastDetectedAt < 1500) return;
+    lastValue = value;
+    lastDetectedAt = now;
+
+    var callback = onDetectCallback;
+    stop();
+    if (callback) callback({ rawValue: value });
+  }
+
+  function cleanupReader() {
+    var reader = document.getElementById('quagga-reader');
+    if (reader && reader.parentNode) reader.parentNode.removeChild(reader);
+    if (target) target.style.display = '';
   }
 
   function stop() {
     stopped = true;
-    if (rafId) {
-      global.cancelAnimationFrame(rafId);
-      rafId = null;
+    if (global.Quagga) {
+      try { global.Quagga.offDetected(handleDetected); } catch (e) {}
+      try { global.Quagga.stop(); } catch (e) {}
     }
     if (stream) {
       stream.getTracks().forEach(function (t) { t.stop(); });
       stream = null;
     }
-    detector = null;
+    cleanupReader();
+    target = null;
+    onDetectCallback = null;
+    onErrorCallback = null;
   }
 
   global.RR = global.RR || {};
