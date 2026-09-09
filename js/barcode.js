@@ -1,8 +1,7 @@
 /* ============================================================
  * barcode.js
- * カメラ映像からISBN(EAN-13)バーコードを読み取る。
- * QuaggaJSを使用。学校のiPad/スマートフォン等での
- * ブラウザ依存を減らすため、BarcodeDetector APIは使用しない。
+ * カメラ映像からISBNバーコードを読み取る。
+ * QuaggaJSを使用。カメラを選択してスキャンできる。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -14,9 +13,24 @@
   var onErrorCallback = null;
   var lastValue = null;
   var lastDetectedAt = 0;
+  var selectedDeviceId = '';
 
   function isSupported() {
     return !!(global.Quagga && global.navigator && global.navigator.mediaDevices && global.navigator.mediaDevices.getUserMedia);
+  }
+
+  function getCameras() {
+    if (!isSupported()) return Promise.resolve([]);
+    return global.navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      return devices.filter(function (d) { return d.kind === 'videoinput'; }).map(function (d, index) {
+        var label = d.label || ('カメラ ' + (index + 1));
+        return { deviceId: d.deviceId, label: label, index: index };
+      });
+    });
+  }
+
+  function setCamera(deviceId) {
+    selectedDeviceId = deviceId || '';
   }
 
   function start(videoEl, onDetect, onError) {
@@ -40,8 +54,6 @@
     var container = videoEl.parentElement || videoEl;
     container.classList.add('barcode-scanner-container');
 
-    // Quaggaが生成するvideo/canvasを既存の表示領域に配置する。
-    // 既存video要素は残してもよいが、Quaggaのvideoを優先して表示する。
     var reader = document.createElement('div');
     reader.id = 'quagga-reader';
     reader.style.width = '100%';
@@ -51,17 +63,24 @@
     videoEl.style.display = 'none';
     container.appendChild(reader);
 
+    var cameraConstraints = {
+      width: { min: 640 },
+      height: { min: 480 },
+      aspectRatio: { min: 1, max: 2 }
+    };
+
+    if (selectedDeviceId) {
+      cameraConstraints.deviceId = { exact: selectedDeviceId };
+    } else {
+      cameraConstraints.facingMode = { ideal: 'environment' };
+    }
+
     global.Quagga.init({
       inputStream: {
         name: 'Live',
         type: 'LiveStream',
         target: reader,
-        constraints: {
-          facingMode: { ideal: 'environment' },
-          width: { min: 640 },
-          height: { min: 480 },
-          aspectRatio: { min: 1, max: 2 }
-        },
+        constraints: cameraConstraints,
         area: {
           top: '20%',
           right: '10%',
@@ -75,9 +94,7 @@
       },
       numOfWorkers: 2,
       frequency: 10,
-      decoder: {
-        readers: ['ean_reader']
-      },
+      decoder: { readers: ['ean_reader'] },
       locate: true
     }, function (err) {
       if (err) {
@@ -103,13 +120,9 @@
 
   function handleDetected(result) {
     if (stopped || !result || !result.codeResult) return;
-
-    var value = result.codeResult.code || '';
-    // ISBN-13として扱える13桁だけを受け付ける。
-    value = value.replace(/[^0-9]/g, '');
+    var value = (result.codeResult.code || '').replace(/[^0-9]/g, '');
     if (value.length !== 13) return;
 
-    // 同じバーコードの連続検出による多重処理を防止。
     var now = Date.now();
     if (value === lastValue && now - lastDetectedAt < 1500) return;
     lastValue = value;
@@ -145,6 +158,8 @@
   global.RR = global.RR || {};
   global.RR.Barcode = {
     isSupported: isSupported,
+    getCameras: getCameras,
+    setCamera: setCamera,
     start: start,
     stop: stop
   };
