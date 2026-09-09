@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>読書レコード</title>
+<meta name="description" content="自分だけの読書記録アプリ。バーコードや手入力で読んだ本を記録し、目標とバッジで読書を続ける力を育てます。">
+<meta name="theme-color" content="#f6f3ea">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
+<link rel="stylesheet" href="./css/style.css">
+<link rel="stylesheet" href="./css/responsive.css">
+</head>
+<body>
+<a class="skip-link" href="#app">本文へ移動</a>
+
+<header class="rr-header">
+  <p class="rr-header__title"><span aria-hidden="true">📖</span> 読書レコード</p>
+</header>
+
+<main id="app" class="rr-main" aria-live="polite">
+  <!-- ここに各画面が描画されます(js/app.js) -->
+</main>
+
+<nav class="rr-nav" aria-label="画面切り替え">
+  <button type="button" class="rr-nav-btn" data-route="home">
+    <span class="rr-nav-btn__icon" aria-hidden="true">🏠</span><span class="rr-nav-btn__label">ホーム</span>
+  </button>
+  <button type="button" class="rr-nav-btn" data-route="add">
+    <span class="rr-nav-btn__icon" aria-hidden="true">📖</span><span class="rr-nav-btn__label">登録</span>
+  </button>
+  <button type="button" class="rr-nav-btn" data-route="records">
+    <span class="rr-nav-btn__icon" aria-hidden="true">📚</span><span class="rr-nav-btn__label">記録</span>
+  </button>
+  <button type="button" class="rr-nav-btn" data-route="stats">
+    <span class="rr-nav-btn__icon" aria-hidden="true">📊</span><span class="rr-nav-btn__label">集計</span>
+  </button>
+  <button type="button" class="rr-nav-btn" data-route="badges">
+    <span class="rr-nav-btn__icon" aria-hidden="true">🏅</span><span class="rr-nav-btn__label">バッジ</span>
+  </button>
+  <button type="button" class="rr-nav-btn" data-route="settings">
+    <span class="rr-nav-btn__icon" aria-hidden="true">⚙️</span><span class="rr-nav-btn__label">設定</span>
+  </button>
+</nav>
+
+<div id="modal-root" class="rr-modal-root"></div>
+<div id="toast-root" class="rr-toast-root"></div>
+
+<!-- 紙吹雪演出(任意)。読み込めなくても js/ui-common.js 側でフォールバックする -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js" defer></script>
+
+<!-- コアモジュール(依存の少ない順) -->
+<script src="./js/stats.js"></script>
+<script src="./js/storage.js"></script>
+<script src="./js/books.js"></script>
+<script src="./js/badges.js"></script>
+<script src="./js/navi.js"></script>
+<script src="./js/api.js"></script>
+<script src="./js/barcode.js"></script>
+<script src="./js/backup.js"></script>
+<script src="./js/ui-common.js"></script>
+
+<!-- 画面ごとのビュー -->
+<script src="./js/views/home.js"></script>
+<script src="./js/views/add.js"></script>
+<script src="./js/views/records.js"></script>
+<script src="./js/views/stats.js"></script>
+<script src="./js/views/badges.js"></script>
+<script src="./js/views/settings.js"></script>
+
+<!-- ルーター・エントリーポイント -->
+<script src="./js/app.js"></script>
+</body>
+</html>
