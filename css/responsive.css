@@ -1,0 +1,59 @@
+/* ============================================================
+ * responsive.css
+ * スマートフォン縦画面を基準に組んだ style.css を、
+ * タブレット・PC幅でも崩れず見やすいように調整する。
+ * ============================================================ */
+
+/* ---------------- タブレット (600px〜) ---------------- */
+@media (min-width: 600px) {
+  .rr-main { padding: 24px 28px calc(28px + env(safe-area-inset-bottom, 0px)); }
+
+  .rr-stat-row { grid-template-columns: 1fr 1fr 1fr; }
+  .rr-badge-grid { grid-template-columns: repeat(4, 1fr); }
+  .rr-record-list { grid-template-columns: 1fr 1fr; }
+  .rr-tabbar { max-width: 420px; margin: 0 auto; width: 100%; }
+
+  .rr-modal-overlay { align-items: center; }
+  .rr-modal {
+    border-radius: 20px;
+    max-width: 460px;
+    max-height: 80vh;
+  }
+}
+
+/* ---------------- タブレット横向き・小型PC (900px〜) ---------------- */
+@media (min-width: 900px) {
+  .rr-main { max-width: 900px; }
+
+  .rr-view { gap: 18px; }
+
+  /* ホームの主要カードを横並びにして、余白を活かす */
+  .rr-home { grid-template-columns: 1.2fr 1fr; }
+  .rr-home .rr-card--hero { grid-column: 1; grid-row: 1 / span 2; }
+  .rr-home .rr-card--month { grid-column: 2; grid-row: 1; }
+  .rr-home .rr-stat-row { grid-column: 2; grid-row: 2; grid-template-columns: 1fr; align-content: start; }
+  .rr-home .rr-btn--cta { grid-column: 1 / -1; max-width: 360px; justify-self: center; }
+
+  .rr-badge-grid { grid-template-columns: repeat(6, 1fr); }
+  .rr-record-list { grid-template-columns: 1fr 1fr 1fr; }
+
+  .rr-bar-chart { height: 190px; }
+}
+
+/* ---------------- PC (1200px〜) ---------------- */
+@media (min-width: 1200px) {
+  .rr-main { max-width: 1080px; }
+  .rr-nav { max-width: 1080px; left: 50%; transform: translateX(-50%); border-radius: 20px 20px 0 0; }
+}
+
+/* ---------------- スマホの小型端末(横幅375px未満)向け微調整 ---------------- */
+@media (max-width: 359px) {
+  .rr-hero-number { font-size: 2.1rem; }
+  .rr-btn { font-size: 0.92rem; }
+  .rr-nav-btn__label { font-size: 0.56rem; }
+}
+
+/* ---------------- 印刷(念のため、ナビ等は非表示に) ---------------- */
+@media print {
+  .rr-nav, .rr-header, .rr-modal-root, .rr-toast-root { display: none !important; }
+}
