@@ -27,6 +27,7 @@
 
         '<div class="rr-card rr-card--muted">' +
           '<p class="rr-hint">📚 本棚の本: ' + data.books.length + '冊(お気に入り ' + data.books.filter(function (b) { return b.isFavorite; }).length + '冊)</p>' +
+          '<p class="rr-hint">書誌情報の一部は国立国会図書館サーチAPIを利用しています。</p>' +
         '</div>' +
       '</section>'
     );
