@@ -20,8 +20,9 @@
     return {
       mode: 'menu', // menu | isbn | photo
       // ISBNで探す
-      scanStatus: 'idle', // idle | scanning | error
+      scanStatus: 'idle', // idle | scanning | invalid | error
       scanErrorMessage: '',
+      scannedCode: '',
       isbnInput: '',
       lookupStatus: 'idle', // idle | loading | done
       result: null,
@@ -101,13 +102,30 @@
     return '<div class="rr-card rr-card--center"><div class="rr-spinner" aria-hidden="true"></div><p>しらべています...</p></div>';
   }
 
+  function renderScannedCode() {
+    if (!vs.scannedCode) return '';
+    var valid = vs.scanStatus !== 'invalid';
+    return (
+      '<div class="rr-card rr-scan-result ' + (valid ? 'rr-scan-result--valid' : 'rr-scan-result--invalid') + '">' +
+        '<p class="rr-scan-result__label">読み取ったコード</p>' +
+        '<p class="rr-scan-result__code">' + U.escapeHtml(vs.scannedCode) + '</p>' +
+        (valid
+          ? '<p class="rr-scan-result__message">ISBN-13として認識しました。書籍情報を調べます。</p>'
+          : '<p class="rr-scan-result__message">これはISBNのバーコードではないようです。<br>本のISBNバーコードを読み取ってください。</p>'
+        ) +
+        (valid ? '' : '<button type="button" class="rr-btn rr-btn--cta" data-action="scan-retry">もう一度読み取る</button>') +
+      '</div>'
+    );
+  }
+
   function renderIsbnInput() {
     return (
       '<div class="rr-card">' +
         (vs.scanStatus === 'scanning'
           ? '<div class="rr-scan-frame"><div id="rr-scanner-target" class="rr-scanner-target"></div><div class="rr-scan-guide"></div></div>' +
             '<button type="button" class="rr-btn rr-btn--ghost" data-action="scan-stop">スキャンをやめる</button>'
-          : '<button type="button" class="rr-btn rr-btn--cta" data-action="scan-start">📷 カメラでバーコードをよむ</button>'
+          : renderScannedCode() +
+            '<button type="button" class="rr-btn rr-btn--cta" data-action="scan-start">📷 カメラでバーコードをよむ</button>'
         ) +
         (vs.scanStatus === 'error' ? '<p class="rr-error-text">⚠️ ' + U.escapeHtml(vs.scanErrorMessage) + '</p>' : '') +
         '<p class="rr-or-divider">または</p>' +
@@ -230,10 +248,18 @@
     if (scanStartBtn) scanStartBtn.addEventListener('click', function () {
       vs.scanStatus = 'scanning';
       vs.scanErrorMessage = '';
+      vs.scannedCode = '';
       rerenderSelf();
       var target = document.getElementById('rr-scanner-target');
       if (target) {
-        Barcode.start(target, function (code) {
+        Barcode.start(target, function (code, isValidIsbn) {
+          vs.scannedCode = code;
+          if (!isValidIsbn) {
+            vs.scanStatus = 'invalid';
+            vs.lookupStatus = 'idle';
+            rerenderSelf();
+            return;
+          }
           vs.scanStatus = 'idle';
           runIsbnLookup(code);
         }, function (err) {
@@ -241,6 +267,32 @@
           vs.scanErrorMessage = Barcode.isSupported()
             ? 'カメラを起動できませんでした。カメラの使用を許可しているか確認してね。'
             : 'バーコード読み取り機能を読み込めませんでした。数字を入力して探してみてね。';
+          rerenderSelf();
+        });
+      }
+    });
+
+    var scanRetryBtn = container.querySelector('[data-action="scan-retry"]');
+    if (scanRetryBtn) scanRetryBtn.addEventListener('click', function () {
+      vs.scanStatus = 'scanning';
+      vs.scannedCode = '';
+      vs.scanErrorMessage = '';
+      rerenderSelf();
+      var target = document.getElementById('rr-scanner-target');
+      if (target) {
+        Barcode.start(target, function (code, isValidIsbn) {
+          vs.scannedCode = code;
+          if (!isValidIsbn) {
+            vs.scanStatus = 'invalid';
+            vs.lookupStatus = 'idle';
+            rerenderSelf();
+            return;
+          }
+          vs.scanStatus = 'idle';
+          runIsbnLookup(code);
+        }, function () {
+          vs.scanStatus = 'error';
+          vs.scanErrorMessage = 'カメラを起動できませんでした。カメラの使用を許可しているか確認してね。';
           rerenderSelf();
         });
       }
@@ -296,6 +348,8 @@
       vs.lookupStatus = 'idle';
       vs.result = null;
       vs.isbnInput = '';
+      vs.scannedCode = '';
+      vs.scanStatus = 'idle';
       rerenderSelf();
     });
   }
@@ -356,40 +410,44 @@
         memo: document.getElementById('rr-c-memo').value.trim(),
         isFavorite: document.getElementById('rr-c-fav').checked,
         entryMethod: vs.entryMethodForPhoto || 'photo',
-        _previewDataUrl: vs.previewDataUrl // app.js側でIndexedDBへ保存する
+        _previewDataUrl: vs.previewDataUrl
       };
-      ctx.actions.registerBookWithPhoto(input);
+      ctx.actions.registerBook(input);
     });
   }
 
   function startPhotoFlow(useCamera) {
     vs.mode = 'photo';
-    vs.entryMethodForPhoto = useCamera ? 'photo' : 'library';
     vs.photoBusy = true;
+    vs.previewDataUrl = '';
+    vs.form = defaultForm();
     rerenderSelf();
-    Camera.pickImage(useCamera).then(function (file) {
-      if (!file) {
+    if (useCamera) {
+      Camera.pickPhoto(function (dataUrl) {
         vs.photoBusy = false;
-        vs.mode = 'menu';
-        vs = freshState();
-        rerenderSelf();
-        U.showToast('写真が選ばれなかったよ');
-        return;
-      }
-      return ImageStore.fileToCompressedDataUrl(file).then(function (dataUrl) {
         vs.previewDataUrl = dataUrl;
-        vs.form = defaultForm();
+        vs.entryMethodForPhoto = 'camera';
+        rerenderSelf();
+      }, function () {
         vs.photoBusy = false;
         rerenderSelf();
+        U.showToast('写真を撮れませんでした');
       });
-    }).catch(function (err) {
-      vs.photoBusy = false;
-      rerenderSelf();
-      U.showToast('画像の読み込みに失敗したよ: ' + (err && err.message ? err.message : ''));
-    });
+    } else {
+      Camera.pickFromLibrary(function (dataUrl) {
+        vs.photoBusy = false;
+        vs.previewDataUrl = dataUrl;
+        vs.entryMethodForPhoto = 'library';
+        rerenderSelf();
+      }, function () {
+        vs.photoBusy = false;
+        rerenderSelf();
+        U.showToast('写真を選べませんでした');
+      });
+    }
   }
 
   global.RR = global.RR || {};
   global.RR.Views = global.RR.Views || {};
-  global.RR.Views.add = { render: render, bind: bind, onEnter: onEnter, onLeave: onLeave };
+  global.RR.Views.add = { onEnter: onEnter, onLeave: onLeave, render: render, bind: bind };
 })(window);
