@@ -42,7 +42,7 @@
     if (state.route === 'shelf' && global.RR.Navi) {
       var shelf = container.querySelector('.rr-shelf');
       if (shelf && !shelf.querySelector('.rr-navi-corner')) {
-        shelf.insertAdjacentHTML('afterbegin', global.RR.Navi.shelfHtml());
+        shelf.insertAdjacentHTML('afterbegin', '<div class="rr-navi-corner">' + global.RR.Navi.shelfHtml() + '</div>');
       }
     }
   }
@@ -114,8 +114,9 @@
     var book = state.data.books.find(function (b) { return b.id === bookId; });
     if (!book) { navigate('shelf'); return; }
     var moodHtml = U.moodChoicesHtml(book.mood || '');
+    var naviHtml = global.RR.Navi ? global.RR.Navi.registeredHtml(book.title) : '';
     var html = '<div class="rr-post-register">' +
-      '<div class="rr-post-register__head"><span aria-hidden="true">📚</span><div><h2>本棚に追加したよ</h2><p>最後に、この本のことをちょっとだけ教えてね。</p></div></div>' +
+      naviHtml +
       '<div class="rr-post-register__section"><p class="rr-post-register__label">この本、どんな感じだった？</p>' + moodHtml + '</div>' +
       '<div class="rr-post-register__section"><p class="rr-post-register__label">表紙も残しておく？</p>' +
         '<div class="rr-post-register__photo-actions"><button type="button" class="rr-btn rr-btn--ghost" data-post-photo="camera">📷 表紙を撮る</button><button type="button" class="rr-btn rr-btn--ghost" data-post-photo="library">🖼 写真から選ぶ</button></div>' +
