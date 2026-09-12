@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>マガジンラック - 読書レコード</title>
-<meta name="description" content="読んだ本が並んでいく、自分だけの本棚アプリ。表紙を中心に読書の積み重ねを振り返れます。タブレット向け。">
+<title>読書レコード</title>
+<meta name="description" content="読んだ本を記録して、自分の読書の積み重ねを振り返る読書記録アプリ。">
 <meta name="theme-color" content="#efe6d2">
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" href="./assets/icons/icon-192.png">
@@ -17,7 +17,7 @@
 
 <div class="rr-shell">
   <header class="rr-header">
-    <p class="rr-header__title"><span aria-hidden="true">📚</span> マガジンラック</p>
+    <p class="rr-header__title">読書レコード</p>
   </header>
 
   <nav class="rr-nav" aria-label="画面切り替え">
@@ -40,10 +40,8 @@
 <div id="modal-root" class="rr-modal-root"></div>
 <div id="toast-root" class="rr-toast-root"></div>
 
-<!-- バーコード読み取り(ISBN取得専用)。表紙撮影(camera.js)とは別機能 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js" defer></script>
 
-<!-- コアモジュール -->
 <script src="./js/stats.js"></script>
 <script src="./js/storage.js"></script>
 <script src="./js/books.js"></script>
@@ -53,13 +51,9 @@
 <script src="./js/camera.js"></script>
 <script src="./js/backup.js"></script>
 <script src="./js/ui-common.js"></script>
-
-<!-- 画面ごとのビュー -->
 <script src="./js/views/shelf.js"></script>
 <script src="./js/views/add.js"></script>
 <script src="./js/views/settings.js"></script>
-
-<!-- ルーター・エントリーポイント -->
 <script src="./js/app.js"></script>
 </body>
 </html>
