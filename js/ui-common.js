@@ -97,12 +97,15 @@
   }
 
   function moodChoicesHtml(selected) {
-    return '<div class="rr-mood-choices" role="group" aria-label="この本の感想">' +
+    return '<div class="rr-mood-choices" role="group" aria-label="この本の感想" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">' +
       MOODS.map(function (m) {
-        var active = selected === m.key ? ' is-selected' : '';
-        return '<button type="button" class="rr-mood-choice' + active + '" data-mood="' + m.key + '" style="--mood-bg:' + m.bg + ';--mood-ink:' + m.ink + ';">' +
-          '<span class="rr-mood-choice__emoji" aria-hidden="true">' + m.emoji + '</span>' +
-          '<span class="rr-mood-choice__label">' + escapeHtml(m.label) + '</span>' +
+        var active = selected === m.key;
+        var bg = active ? m.bg : 'rgba(0,0,0,.04)';
+        var ink = active ? m.ink : 'inherit';
+        var border = active ? '2px solid ' + m.bg : '1px solid rgba(0,0,0,.12)';
+        return '<button type="button" class="rr-mood-choice' + (active ? ' is-selected' : '') + '" data-mood="' + m.key + '" aria-pressed="' + (active ? 'true' : 'false') + '" style="display:flex;align-items:center;gap:8px;justify-content:flex-start;min-height:46px;padding:7px 10px;border-radius:10px;border:' + border + ';background:' + bg + ';color:' + ink + ';font:inherit;font-weight:800;cursor:pointer;">' +
+          '<span style="font-size:1.2rem;line-height:1;" aria-hidden="true">' + m.emoji + '</span>' +
+          '<span style="font-size:.82rem;line-height:1.25;">' + escapeHtml(m.label) + '</span>' +
         '</button>';
       }).join('') +
     '</div>';
@@ -134,7 +137,7 @@
 
     if (book.coverSource === 'user' && book.coverImageId) {
       return '<div class="rr-cover ' + sizeClass + ' rr-cover--pending" data-cover-source="user" data-cover-image-id="' + escapeHtml(book.coverImageId) +
-        '" data-cover-title="' + escapeHtml(book.title || 'タイトルなし') + '" style="background:' + color.bg + ';color:' + color.ink + ';">' + favMark +
+        '" data-cover-title="' + escapeHtml(book.title || 'タイトルなし') + '" data-cover-mood="' + escapeHtml(book.mood || '') + '" style="background:' + color.bg + ';color:' + color.ink + ';">' + favMark +
         '<span class="rr-cover__spinner" aria-hidden="true"></span></div>';
     }
 
@@ -147,6 +150,7 @@
     pending.forEach(function (elm) {
       var imageId = elm.getAttribute('data-cover-image-id');
       var title = elm.getAttribute('data-cover-title') || 'タイトルなし';
+      var mood = elm.getAttribute('data-cover-mood') || '';
       global.RR.ImageStore.getImage(imageId).then(function (dataUrl) {
         if (!elm.isConnected) return;
         if (dataUrl) {
@@ -160,7 +164,7 @@
         } else {
           elm.classList.remove('rr-cover--pending');
           elm.classList.add('rr-cover--fallback');
-          var color = fallbackColor({ id: elm.closest('.rr-book-card') ? elm.closest('.rr-book-card').getAttribute('data-id') : '', title: title });
+          var color = fallbackColor({ id: elm.closest('.rr-book-card') ? elm.closest('.rr-book-card').getAttribute('data-id') : '', title: title, mood: mood });
           elm.style.background = color.bg;
           elm.style.color = color.ink;
           var spinner = elm.querySelector('.rr-cover__spinner');
