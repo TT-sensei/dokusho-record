@@ -3,72 +3,60 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>読書レコード</title>
-<meta name="description" content="自分だけの読書記録アプリ。バーコードや手入力で読んだ本を記録し、目標とバッジで読書を続ける力を育てます。">
-<meta name="theme-color" content="#f6f3ea">
+<title>マガジンラック - 読書レコード</title>
+<meta name="description" content="読んだ本が並んでいく、自分だけの本棚アプリ。表紙を中心に読書の積み重ねを振り返れます。タブレット向け。">
+<meta name="theme-color" content="#efe6d2">
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" href="./assets/icons/icon-192.png">
-<link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="./assets/icons/icon-180.png">
 <link rel="stylesheet" href="./css/style.css">
 <link rel="stylesheet" href="./css/responsive.css">
 </head>
 <body>
 <a class="skip-link" href="#app">本文へ移動</a>
 
-<header class="rr-header">
-  <p class="rr-header__title"><span aria-hidden="true">📖</span> 読書レコード</p>
-</header>
+<div class="rr-shell">
+  <header class="rr-header">
+    <p class="rr-header__title"><span aria-hidden="true">📚</span> マガジンラック</p>
+  </header>
 
-<main id="app" class="rr-main" aria-live="polite">
-  <!-- ここに各画面が描画されます(js/app.js) -->
-</main>
+  <nav class="rr-nav" aria-label="画面切り替え">
+    <button type="button" class="rr-nav-btn" data-route="shelf">
+      <span class="rr-nav-btn__icon" aria-hidden="true">📚</span><span class="rr-nav-btn__label">本棚</span>
+    </button>
+    <button type="button" class="rr-nav-btn" data-route="add">
+      <span class="rr-nav-btn__icon" aria-hidden="true">➕</span><span class="rr-nav-btn__label">本を登録</span>
+    </button>
+    <button type="button" class="rr-nav-btn" data-route="settings">
+      <span class="rr-nav-btn__icon" aria-hidden="true">⚙️</span><span class="rr-nav-btn__label">設定</span>
+    </button>
+  </nav>
 
-<nav class="rr-nav" aria-label="画面切り替え">
-  <button type="button" class="rr-nav-btn" data-route="home">
-    <span class="rr-nav-btn__icon" aria-hidden="true">🏠</span><span class="rr-nav-btn__label">ホーム</span>
-  </button>
-  <button type="button" class="rr-nav-btn" data-route="add">
-    <span class="rr-nav-btn__icon" aria-hidden="true">📖</span><span class="rr-nav-btn__label">登録</span>
-  </button>
-  <button type="button" class="rr-nav-btn" data-route="records">
-    <span class="rr-nav-btn__icon" aria-hidden="true">📚</span><span class="rr-nav-btn__label">記録</span>
-  </button>
-  <button type="button" class="rr-nav-btn" data-route="stats">
-    <span class="rr-nav-btn__icon" aria-hidden="true">📊</span><span class="rr-nav-btn__label">集計</span>
-  </button>
-  <button type="button" class="rr-nav-btn" data-route="badges">
-    <span class="rr-nav-btn__icon" aria-hidden="true">🏅</span><span class="rr-nav-btn__label">バッジ</span>
-  </button>
-  <button type="button" class="rr-nav-btn" data-route="settings">
-    <span class="rr-nav-btn__icon" aria-hidden="true">⚙️</span><span class="rr-nav-btn__label">設定</span>
-  </button>
-</nav>
+  <main id="app" class="rr-main" aria-live="polite">
+    <!-- ここに各画面が描画されます(js/app.js) -->
+  </main>
+</div>
 
 <div id="modal-root" class="rr-modal-root"></div>
 <div id="toast-root" class="rr-toast-root"></div>
 
-<!-- 紙吹雪演出(任意)。読み込めなくても js/ui-common.js 側でフォールバックする -->
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js" defer></script>
-<!-- カメラバーコード読み取り。BarcodeDetector APIではなくQuaggaJSを使用 -->
-<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+<!-- バーコード読み取り(ISBN取得専用)。表紙撮影(camera.js)とは別機能 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js" defer></script>
 
-<!-- コアモジュール(依存の少ない順) -->
+<!-- コアモジュール -->
 <script src="./js/stats.js"></script>
 <script src="./js/storage.js"></script>
 <script src="./js/books.js"></script>
-<script src="./js/badges.js"></script>
-<script src="./js/navi.js"></script>
-<script src="./js/api.js"></script>
+<script src="./js/imagestore.js"></script>
+<script src="./js/isbn-search.js"></script>
 <script src="./js/barcode.js"></script>
+<script src="./js/camera.js"></script>
 <script src="./js/backup.js"></script>
 <script src="./js/ui-common.js"></script>
 
 <!-- 画面ごとのビュー -->
-<script src="./js/views/home.js"></script>
+<script src="./js/views/shelf.js"></script>
 <script src="./js/views/add.js"></script>
-<script src="./js/views/records.js"></script>
-<script src="./js/views/stats.js"></script>
-<script src="./js/views/badges.js"></script>
 <script src="./js/views/settings.js"></script>
 
 <!-- ルーター・エントリーポイント -->

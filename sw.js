@@ -1,15 +1,14 @@
 /* ============================================================
  * sw.js
  * アプリ本体(HTML/CSS/JS/アイコン)をキャッシュし、オフラインでも
- * 閲覧・記録・集計・バッジ・設定が使えるようにする。
+ * 本棚の閲覧・お気に入り・削除・設定・バックアップ書き出しが
+ * 使えるようにする。
  *
- * ISBN検索(openBD/Google Books)やバッジ・ナビキャラの画像など
- * 外部ドメインへのリクエストはこのSWで横取りしない
- * (通常のネットワーク動作に任せ、失敗時はアプリ側のJSで
- *  ハンドリングする)。
+ * ISBN検索(Google Books/openBD/NDL)やQuaggaJSのCDN読み込みなど、
+ * 外部ドメインへのリクエストはこのSWで横取りしない。
  * ============================================================ */
 
-var CACHE_NAME = 'reading-record-cache-v1';
+var CACHE_NAME = 'magazine-rack-cache-v1';
 
 var APP_SHELL = [
   './',
@@ -20,17 +19,14 @@ var APP_SHELL = [
   './js/stats.js',
   './js/storage.js',
   './js/books.js',
-  './js/badges.js',
-  './js/navi.js',
-  './js/api.js',
+  './js/imagestore.js',
+  './js/isbn-search.js',
   './js/barcode.js',
+  './js/camera.js',
   './js/backup.js',
   './js/ui-common.js',
-  './js/views/home.js',
+  './js/views/shelf.js',
   './js/views/add.js',
-  './js/views/records.js',
-  './js/views/stats.js',
-  './js/views/badges.js',
   './js/views/settings.js',
   './js/app.js',
   './assets/icons/icon-192.png',
@@ -49,10 +45,7 @@ self.addEventListener('install', function (event) {
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(
-        keys.filter(function (key) { return key !== CACHE_NAME; })
-          .map(function (key) { return caches.delete(key); })
-      );
+      return Promise.all(keys.filter(function (k) { return k !== CACHE_NAME; }).map(function (k) { return caches.delete(k); }));
     })
   );
   self.clients.claim();
@@ -60,14 +53,8 @@ self.addEventListener('activate', function (event) {
 
 self.addEventListener('fetch', function (event) {
   var url = new URL(event.request.url);
-
-  // 同一オリジン以外(外部API・外部画像)はSWで扱わず、通常のネットワーク動作に任せる
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-  if (event.request.method !== 'GET') {
-    return;
-  }
+  if (url.origin !== self.location.origin) return; // 外部API・CDNは通常のネットワーク動作に任せる
+  if (event.request.method !== 'GET') return;
 
   event.respondWith(
     caches.match(event.request).then(function (cached) {
@@ -78,10 +65,7 @@ self.addEventListener('fetch', function (event) {
           caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
         }
         return response;
-      }).catch(function () {
-        // オフラインでキャッシュにも無い場合はトップページを返す(SPAのフォールバック)
-        return caches.match('./index.html');
-      });
+      }).catch(function () { return caches.match('./index.html'); });
     })
   );
 });
