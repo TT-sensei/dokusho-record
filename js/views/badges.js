@@ -1,6 +1,6 @@
 /* ============================================================
  * views/badges.js
- * 5冊ごとに増えていく「合計」と「今月」の読書バッジを表示する。
+ * 読書冊数バッジと行動アチーブメントを表示する。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -9,37 +9,43 @@
 
   function render(data) {
     var c = Badges.counts(data);
-    var nextTotal = (Math.floor(c.totalBooks / Badges.STEP) + 1) * Badges.STEP;
-    var nextMonthly = (Math.floor(c.monthlyBooks / Badges.STEP) + 1) * Badges.STEP;
+    var milestones = Badges.MILESTONES;
+    var earned = Badges.earnedMilestones(data);
+    var achievementList = Badges.ACHIEVEMENTS;
+    var earnedAchievements = Badges.earnedAchievements(data);
+    var earnedIds = {};
+    earnedAchievements.forEach(function (item) { earnedIds[item.id] = true; });
+    var next = Badges.nextTarget(c.totalBooks);
+    var monthlyTarget = Number((data.settings || {}).monthlyTarget || 0);
+    var monthlyRemain = monthlyTarget > 0 ? Math.max(0, monthlyTarget - c.monthlyBooks) : 0;
 
-    return (
-      '<section class="rr-view rr-badges">' +
-        '<div class="rr-badges__head">' +
-          '<div><h2>バッジ</h2><p>5冊読むごとに、同じバッジが1つ増えていくよ。</p></div>' +
-        '</div>' +
-        '<div class="rr-badge-grid">' +
-          renderCard(Badges.DEFINITIONS[0], c.total, c.totalBooks, nextTotal) +
-          renderCard(Badges.DEFINITIONS[1], c.monthly, c.monthlyBooks, nextMonthly) +
-        '</div>' +
-      '</section>'
-    );
-  }
-
-  function renderCard(def, copies, books, next) {
-    var copyLabel = copies > 0 ? '×' + copies : 'まだ獲得していないよ';
-    var progress = books % Badges.STEP;
-    var remain = Badges.STEP - progress;
-    if (copies > 0 && progress === 0) remain = Badges.STEP;
-
-    return '<article class="rr-badge-card' + (copies > 0 ? ' is-earned' : ' is-locked') + '">' +
-      '<div class="rr-badge-medal" aria-hidden="true">🏅</div>' +
-      '<div class="rr-badge-card__body">' +
-        '<h3>' + U.escapeHtml(def.name) + '</h3>' +
-        '<p class="rr-badge-card__copies">' + copyLabel + '</p>' +
-        '<p class="rr-badge-card__description">' + U.escapeHtml(def.description) + '</p>' +
-        '<p class="rr-badge-card__progress">' + books + '冊 ・ 次まであと' + remain + '冊</p>' +
+    return '<section class="rr-view rr-badges">' +
+      '<div class="rr-badges__head">' +
+        '<div><h2>バッジ</h2><p>読んだ本や、読書の記録を続けることでバッジが増えていくよ。</p></div>' +
       '</div>' +
-    '</article>';
+      '<section class="rr-badge-section">' +
+        '<div class="rr-badge-section__head"><h3>読書の記録</h3><p>' + c.totalBooks + '冊 ・ 次のバッジまで' + (c.totalBooks >= 100 ? '達成！' : (next.count - c.totalBooks) + '冊') + '</p></div>' +
+        '<div class="rr-badge-milestones">' + milestones.map(function (badge) {
+          var isEarned = c.totalBooks >= badge.count;
+          return '<article class="rr-badge-tile ' + (isEarned ? 'is-earned' : 'is-locked') + '">' +
+            '<img src="' + badge.image + '" alt="" loading="lazy">' +
+            '<strong>' + badge.count + '冊</strong>' +
+            '<span>' + U.escapeHtml(badge.name) + '</span>' +
+          '</article>';
+        }).join('') + '</div>' +
+      '</section>' +
+      '<section class="rr-badge-section">' +
+        '<div class="rr-badge-section__head"><h3>読書を続ける</h3><p>' + (monthlyTarget > 0 ? '今月 ' + c.monthlyBooks + '冊 ・ 月目標まであと' + monthlyRemain + '冊' : '目標を設定すると、達成バッジも集められるよ。') + '</p></div>' +
+        '<div class="rr-badge-achievements">' + achievementList.map(function (item) {
+          var isEarned = !!earnedIds[item.id];
+          var image = 'https://tt-sensei.github.io/edu-assets/assets/web/badges/common/' + item.image + '/badge.webp';
+          return '<article class="rr-badge-achievement ' + (isEarned ? 'is-earned' : 'is-locked') + '">' +
+            '<img src="' + image + '" alt="" loading="lazy">' +
+            '<div><h4>' + U.escapeHtml(item.name) + '</h4><p>' + U.escapeHtml(item.description) + '</p></div>' +
+          '</article>';
+        }).join('') + '</div>' +
+      '</section>' +
+    '</section>';
   }
 
   function bind() {}
