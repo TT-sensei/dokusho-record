@@ -54,7 +54,6 @@
     });
   }
 
-  /* ---------------- 目標達成の控えめな検知 ---------------- */
   function checkGoalAchievement(beforeBooks, afterBooks) {
     var now = new Date();
     var y = now.getFullYear(), m = now.getMonth();
@@ -68,8 +67,6 @@
       setTimeout(function () { U.showAchievement('今年の目標を達成したよ'); }, 500);
     }
   }
-
-  /* ---------------- アクション ---------------- */
 
   function registerBook(input) {
     var beforeBooks = state.data.books.slice();
@@ -104,6 +101,12 @@
   function updateBookAction(id, changes) {
     Books.updateBook(state.data, id, changes);
     renderCurrentView();
+  }
+
+  function setMoodAction(id, mood) {
+    if (!U.getMood(mood)) return;
+    Books.updateBook(state.data, id, { mood: mood });
+    U.showToast('感想を記録したよ');
   }
 
   function deleteBookAction(id) {
@@ -155,6 +158,7 @@
       registerBookWithPhoto: registerBookWithPhoto,
       toggleFavorite: toggleFavoriteAction,
       updateBook: updateBookAction,
+      setMood: setMoodAction,
       deleteBook: deleteBookAction,
       saveSettings: saveSettingsAction,
       exportData: exportDataAction,
@@ -165,7 +169,7 @@
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js').catch(function () { /* 通常利用は継続可能 */ });
+        navigator.serviceWorker.register('./sw.js').catch(function () {});
       });
     }
   }
