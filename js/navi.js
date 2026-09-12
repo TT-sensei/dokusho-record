@@ -12,18 +12,14 @@
   var DEFAULT_POSE = '07-encouraging';
 
   function escapeHtml(s) {
-    return String(s || '')
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function characterUrl(id, pose) {
     return NAVI_WEB_BASE + '/' + id + '/expressions/' + (pose || DEFAULT_POSE) + '.webp';
   }
 
-  function randomCharacter() {
-    return CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
-  }
+  function randomCharacter() { return CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)]; }
 
   function characterHtml(options) {
     options = options || {};
@@ -36,8 +32,11 @@
     options = options || {};
     var id = options.id || randomCharacter();
     var pose = options.pose || DEFAULT_POSE;
-    return '<div class="navi-bubble">' + characterHtml({ id: id, pose: pose }) +
-      '<div class="navi-bubble__text">' + escapeHtml(line || '') + '</div></div>';
+    return '<div class="navi-bubble">' + characterHtml({ id: id, pose: pose }) + '<div class="navi-bubble__text">' + escapeHtml(line || '') + '</div></div>';
+  }
+
+  function shelfHtml() {
+    return '<div class="rr-navi-corner" aria-hidden="true">' + characterHtml({}) + '</div>';
   }
 
   global.RR = global.RR || {};
@@ -47,6 +46,7 @@
     characterUrl: characterUrl,
     randomCharacter: randomCharacter,
     characterHtml: characterHtml,
-    bubbleHtml: bubbleHtml
+    bubbleHtml: bubbleHtml,
+    shelfHtml: shelfHtml
   };
 })(window);
