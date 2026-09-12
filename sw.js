@@ -1,14 +1,11 @@
 /* ============================================================
  * sw.js
- * アプリ本体(HTML/CSS/JS/アイコン)をキャッシュし、オフラインでも
+ * 読書レコードのアプリ本体をキャッシュし、オフラインでも
  * 本棚の閲覧・お気に入り・削除・設定・バックアップ書き出しが
  * 使えるようにする。
- *
- * ISBN検索(Google Books/openBD/NDL)やQuaggaJSのCDN読み込みなど、
- * 外部ドメインへのリクエストはこのSWで横取りしない。
  * ============================================================ */
 
-var CACHE_NAME = 'magazine-rack-cache-v1';
+var CACHE_NAME = 'reading-record-cache-v2';
 
 var APP_SHELL = [
   './',
@@ -37,7 +34,7 @@ self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function (cache) { return cache.addAll(APP_SHELL); })
-      .catch(function () { /* 一部キャッシュに失敗してもインストール自体は続行する */ })
+      .catch(function () {})
   );
   self.skipWaiting();
 });
@@ -45,7 +42,10 @@ self.addEventListener('install', function (event) {
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE_NAME; }).map(function (k) { return caches.delete(k); }));
+      return Promise.all(
+        keys.filter(function (k) { return k !== CACHE_NAME; })
+          .map(function (k) { return caches.delete(k); })
+      );
     })
   );
   self.clients.claim();
@@ -53,7 +53,7 @@ self.addEventListener('activate', function (event) {
 
 self.addEventListener('fetch', function (event) {
   var url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return; // 外部API・CDNは通常のネットワーク動作に任せる
+  if (url.origin !== self.location.origin) return;
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
@@ -62,10 +62,14 @@ self.addEventListener('fetch', function (event) {
       return fetch(event.request).then(function (response) {
         if (response && response.ok) {
           var clone = response.clone();
-          caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
+          caches.open(CACHE_NAME).then(function (cache) {
+            cache.put(event.request, clone);
+          });
         }
         return response;
-      }).catch(function () { return caches.match('./index.html'); });
+      }).catch(function () {
+        return caches.match('./index.html');
+      });
     })
   );
 });
