@@ -1,8 +1,7 @@
 /* ============================================================
  * isbn-search.js
  * 日本の学校利用を前提に、openBDを正として書誌情報を取得する。
- * 表紙だけはopenBDに無い場合、またはopenBD画像が利用できない場合に
- * Google Booksをフォールバックとして利用する。
+ * 表紙はopenBDを最優先。openBDに表紙が無い場合だけGoogle Booksを使用。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -44,7 +43,38 @@
   }
 
   function toHttps(url) {
-    return url ? url.replace(/^http:\/\//, 'https://') : url;
+    return url ? String(url).replace(/^http:\/\//, 'https://') : '';
+  }
+
+  // openBDの書影はsummary.coverを第一候補にし、ONIXの
+  // CollateralDetail.SupportingResource.ResourceVersion.ResourceLinkも確認する。
+  function findOpenBDCover(book) {
+    if (!book) return '';
+
+    var summary = book.summary || {};
+    if (summary.cover) return toHttps(summary.cover);
+
+    try {
+      var resources = book.onix && book.onix.CollateralDetail && book.onix.CollateralDetail.SupportingResource;
+      if (Array.isArray(resources)) {
+        for (var i = 0; i < resources.length; i++) {
+          var versions = resources[i] && resources[i].ResourceVersion;
+          if (!Array.isArray(versions)) continue;
+          for (var j = 0; j < versions.length; j++) {
+            var link = versions[j] && versions[j].ResourceLink;
+            if (link) return toHttps(link);
+          }
+        }
+      }
+    } catch (e) {}
+
+    // openBDの書影URL規則による最後のopenBD内フォールバック。
+    var isbn = summary.isbn || '';
+    if (/^\d{13}$/.test(isbn)) {
+      return 'https://cover.openbd.jp/' + isbn + '.jpg';
+    }
+
+    return '';
   }
 
   function createResult(isbn13) {
@@ -72,7 +102,7 @@
       // 書誌情報はopenBDを正とする。Google Booksで上書きしない。
       if (summary.title) result.title = summary.title;
       if (summary.author) result.author = cleanAuthorName(summary.author);
-      if (summary.cover) result.coverUrl = toHttps(summary.cover);
+      result.coverUrl = findOpenBDCover(data[0]);
       if (summary.pages) result.pageCandidates.push(extractCleanNum(summary.pages));
 
       try {
@@ -102,8 +132,8 @@
     });
   }
 
-  // Google BooksはopenBDに本自体が無い場合の完全フォールバック、
-  // またはopenBDに表紙画像だけが無い場合の表紙フォールバックとして使う。
+  // Google BooksはopenBDに本が無い場合の完全フォールバック、
+  // またはopenBDに表紙が無い場合の表紙フォールバックとして使う。
   function fromGoogleBooks(isbn13, result, coverOnly) {
     var url = 'https://www.googleapis.com/books/v1/volumes?q=isbn:' + encodeURIComponent(isbn13);
     return fetchWithTimeout(url).then(function (r) {
@@ -144,12 +174,10 @@
 
     return fromOpenBD(isbn13, result).then(function (openBdFound) {
       if (!openBdFound) {
-        // openBDに無い本だけGoogle Booksを完全フォールバック。
         return fromGoogleBooks(isbn13, result, false);
       }
 
       if (!result.coverUrl) {
-        // 書誌情報はopenBDのまま。表紙だけGoogle Booksから補完。
         return fromGoogleBooks(isbn13, result, true);
       }
 
