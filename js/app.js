@@ -9,7 +9,6 @@
   var ROUTES = ['shelf', 'add', 'settings'];
 
   var Storage, Books, Backup, ImageStore, U, Views, RRStats;
-
   var state = { data: null, route: 'shelf' };
 
   function currentRouteFromHash() {
@@ -90,8 +89,77 @@
   function afterRegister(beforeBooks, book) {
     U.showToast('📚 「' + book.title + '」を本棚に追加したよ');
     Views.shelf.setHighlight(book.id);
-    navigate('shelf');
-    checkGoalAchievement(beforeBooks, state.data.books);
+    showPostRegister(book.id, beforeBooks);
+  }
+
+  function showPostRegister(bookId, beforeBooks) {
+    var book = state.data.books.find(function (b) { return b.id === bookId; });
+    if (!book) { navigate('shelf'); return; }
+
+    var moodHtml = U.moodChoicesHtml(book.mood || '');
+    var html = '<div class="rr-post-register">' +
+      '<div class="rr-post-register__head"><span aria-hidden="true">📚</span><div><h2>本棚に追加したよ</h2><p>最後に、この本のことをちょっとだけ教えてね。</p></div></div>' +
+      '<div class="rr-post-register__section"><p class="rr-post-register__label">この本、どんな感じだった？</p>' + moodHtml + '</div>' +
+      '<div class="rr-post-register__section"><p class="rr-post-register__label">表紙も残しておく？</p>' +
+        '<div class="rr-post-register__photo-actions">' +
+          '<button type="button" class="rr-btn rr-btn--ghost" data-post-photo="camera">📷 表紙を撮る</button>' +
+          '<button type="button" class="rr-btn rr-btn--ghost" data-post-photo="library">🖼 写真から選ぶ</button>' +
+        '</div>' +
+        '<p class="rr-post-register__photo-status" data-post-photo-status>表紙がなくても、本棚には本として並ぶよ。</p>' +
+      '</div>' +
+      '<button type="button" class="rr-btn rr-btn--cta" data-post-done>本棚を見る</button>' +
+    '</div>';
+
+    var modal = U.openModal(html, { wide: true });
+    if (!modal) { navigate('shelf'); return; }
+
+    modal.querySelectorAll('[data-mood]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        Books.updateBook(state.data, bookId, { mood: btn.getAttribute('data-mood') });
+        modal.querySelectorAll('[data-mood]').forEach(function (b) { b.classList.toggle('is-selected', b === btn); });
+        U.showToast('感想を記録したよ');
+      });
+    });
+
+    modal.querySelectorAll('[data-post-photo]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var useCamera = btn.getAttribute('data-post-photo') === 'camera';
+        var status = modal.querySelector('[data-post-photo-status]');
+        if (status) status.textContent = '表紙を選んでね…';
+        global.RR.Camera.pickImage(useCamera).then(function (file) {
+          if (!file) {
+            if (status) status.textContent = '表紙がなくても、本棚には本として並ぶよ。';
+            return;
+          }
+          return readFileAsDataUrl(file).then(function (dataUrl) {
+            var imageId = Storage.generateId(bookId + '-cover');
+            return ImageStore.saveImage(imageId, dataUrl).then(function () {
+              var oldId = book.coverImageId;
+              Books.updateBook(state.data, bookId, { coverSource: 'user', coverImageId: imageId, coverUrl: '' });
+              if (oldId) ImageStore.deleteImage(oldId);
+              if (status) status.textContent = '表紙を保存したよ。';
+            });
+          });
+        }).catch(function () {
+          if (status) status.textContent = '表紙を保存できなかったよ。もう一度試してね。';
+        });
+      });
+    });
+
+    modal.querySelector('[data-post-done]').addEventListener('click', function () {
+      U.closeModal();
+      navigate('shelf');
+      checkGoalAchievement(beforeBooks, state.data.books);
+    });
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
   function toggleFavoriteAction(id) {
@@ -112,9 +180,7 @@
   function deleteBookAction(id) {
     var book = state.data.books.find(function (b) { return b.id === id; });
     Books.deleteBook(state.data, id);
-    if (book && book.coverSource === 'user' && book.coverImageId) {
-      ImageStore.deleteImage(book.coverImageId);
-    }
+    if (book && book.coverSource === 'user' && book.coverImageId) ImageStore.deleteImage(book.coverImageId);
     renderCurrentView();
     U.showToast('本棚から削除したよ');
   }
@@ -182,9 +248,7 @@
     U = global.RR.UICommon;
     Views = global.RR.Views;
     RRStats = global.RR.Stats;
-
     state.data = Storage.load();
-
     bindNav();
     window.addEventListener('hashchange', onHashChange);
     onHashChange();
@@ -192,7 +256,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', init);
-
   global.RR = global.RR || {};
   global.RR.App = { navigate: navigate };
 })(window);
