@@ -20,7 +20,7 @@
 
   /**
    * @param {HTMLElement} targetEl QuaggaJSがvideo/canvasを差し込むコンテナ要素
-   * @param {(code:string)=>void} onDetected 有効なEAN-13を検出した時(1回だけ呼ばれる)
+   * @param {(code:string,isValidIsbn:boolean)=>void} onDetected 検出したコードを1回だけ返す
    * @param {(err:Error)=>void} onError
    */
   function start(targetEl, onDetected, onError) {
@@ -60,16 +60,29 @@
     global.Quagga.onDetected(handleDetected);
   }
 
+  function isValidIsbn13Barcode(code) {
+    if (!/^\d{13}$/.test(code)) return false;
+    // ISBN-13のバーコードは978または979で始まる。
+    if (code.indexOf('978') !== 0 && code.indexOf('979') !== 0) return false;
+    var sum = 0;
+    for (var i = 0; i < 12; i++) {
+      sum += Number(code.charAt(i)) * (i % 2 === 0 ? 1 : 3);
+    }
+    return (10 - (sum % 10)) % 10 === Number(code.charAt(12));
+  }
+
   function handleDetected(data) {
     if (!running || processing) return;
     var code = data && data.codeResult && data.codeResult.code;
-    if (!code || code.length !== 13) return;
-    // チェックディジットで誤検出をふるいにかける
-    if (global.RR.Books && !global.RR.Books.isValidIsbn13(code)) return;
+    if (!code || !/^\d{13}$/.test(code)) return;
+
+    // 正しいISBNでなくても、読み取った番号そのものを画面へ返す。
+    // これで「別のバーコードを読んでしまった」と利用者が判断できる。
     processing = true;
     var cb = onDetectedCallback;
+    var valid = isValidIsbn13Barcode(code);
     stop();
-    if (cb) cb(code);
+    if (cb) cb(code, valid);
   }
 
   function stop() {
@@ -82,5 +95,10 @@
   }
 
   global.RR = global.RR || {};
-  global.RR.Barcode = { isSupported: isSupported, start: start, stop: stop };
+  global.RR.Barcode = {
+    isSupported: isSupported,
+    start: start,
+    stop: stop,
+    isValidIsbn13Barcode: isValidIsbn13Barcode
+  };
 })(window);
