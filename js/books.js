@@ -2,9 +2,6 @@
  * books.js
  * 本棚データ(books配列)のCRUD、お気に入り、検索・絞り込み、
  * ISBN関連のユーティリティを担当する。
- *
- * 同じ本を何度も登録すること(再読など)を妨げない設計とする
- * (「本棚に並んでいく」というコンセプト上、重複エラーは出さない)。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -45,12 +42,6 @@
     return isbn;
   }
 
-  /**
-   * 本を1冊登録する。
-   * @param {object} data ストレージ全体のデータ
-   * @param {object} input 登録内容
-   * @returns {object} 追加された本のレコード
-   */
   function addBook(data, input) {
     var S = global.RR.Stats;
     var book = {
@@ -66,6 +57,7 @@
       registeredDate: S.todayStr(),
       readDate: input.readDate && S.parseDateStr(input.readDate) ? input.readDate : S.todayStr(),
       memo: (input.memo || '').trim(),
+      mood: input.mood || '',
       isFavorite: !!input.isFavorite,
       entryMethod: input.entryMethod || 'manual',
       createdAt: new Date().toISOString()
@@ -101,7 +93,6 @@
     return book || null;
   }
 
-  /** filter: 'all' | 'favorite' | 'thisMonth' | 'thisYear' */
   function filterBooks(books, filter) {
     if (filter === 'favorite') return books.filter(function (b) { return b.isFavorite; });
     if (filter === 'thisMonth' || filter === 'thisYear') {
