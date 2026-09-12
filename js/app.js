@@ -6,9 +6,9 @@
 (function (global) {
   'use strict';
 
-  var ROUTES = ['shelf', 'add', 'settings'];
+  var ROUTES = ['shelf', 'add', 'badges', 'settings'];
 
-  var Storage, Books, Backup, ImageStore, U, Views, RRStats;
+  var Storage, Books, Backup, ImageStore, U, Views, RRStats, Badges;
   var state = { data: null, route: 'shelf' };
 
   function currentRouteFromHash() {
@@ -64,6 +64,22 @@
       setTimeout(function () { U.showAchievement('今月の目標を達成したよ'); }, 500);
     } else if (beforeYear < state.data.settings.annualTarget && afterYear >= state.data.settings.annualTarget) {
       setTimeout(function () { U.showAchievement('今年の目標を達成したよ'); }, 500);
+    }
+  }
+
+  function checkBadgeAchievement(beforeBooks, afterBooks) {
+    if (!Badges) return;
+    var before = Badges.counts({ books: beforeBooks });
+    var after = Badges.counts({ books: afterBooks });
+    var totalNew = after.total - before.total;
+    var monthlyNew = after.monthly - before.monthly;
+    if (totalNew > 0 || monthlyNew > 0) {
+      var parts = [];
+      if (totalNew > 0) parts.push('合計バッジ ×' + after.total);
+      if (monthlyNew > 0) parts.push('今月バッジ ×' + after.monthly);
+      setTimeout(function () {
+        U.showAchievement('🏅 バッジをゲット! ' + parts.join('・'));
+      }, 650);
     }
   }
 
@@ -150,6 +166,7 @@
       U.closeModal();
       navigate('shelf');
       checkGoalAchievement(beforeBooks, state.data.books);
+      checkBadgeAchievement(beforeBooks, state.data.books);
     });
   }
 
@@ -162,9 +179,7 @@
     });
   }
 
-  function toggleFavoriteAction(id) {
-    Books.toggleFavorite(state.data, id);
-  }
+  function toggleFavoriteAction(id) { Books.toggleFavorite(state.data, id); }
 
   function updateBookAction(id, changes) {
     Books.updateBook(state.data, id, changes);
@@ -248,6 +263,7 @@
     U = global.RR.UICommon;
     Views = global.RR.Views;
     RRStats = global.RR.Stats;
+    Badges = global.RR.Badges;
     state.data = Storage.load();
     bindNav();
     window.addEventListener('hashchange', onHashChange);
