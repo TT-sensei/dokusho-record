@@ -1,16 +1,13 @@
-/* 背表紙表示：本らしくタイトルを縦書きにする */
+/* 背表紙表示：タイトルを上から下へ縦書き */
 .rr-shelf-grid--spine .rr-spine-book > span:nth-of-type(2) {
   writing-mode: vertical-rl;
   text-orientation: mixed;
   white-space: normal;
   word-break: break-all;
   overflow: hidden;
-  display: flex !important;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
+  display: block !important;
   width: auto !important;
-  max-width: 100%;
+  max-width: none;
   height: 145px;
   max-height: 145px;
   font-size: .82rem !important;
