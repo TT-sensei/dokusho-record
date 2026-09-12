@@ -67,13 +67,10 @@
 
   /* ---------------- 表紙画像 ---------------- */
   var FALLBACK_COLORS = [
-    { name: 'red', bg: '#d95f59', ink: '#fff' },
-    { name: 'blue', bg: '#4f83b8', ink: '#fff' },
-    { name: 'green', bg: '#5c9b72', ink: '#fff' },
-    { name: 'yellow', bg: '#d5a83d', ink: '#2b2118' },
-    { name: 'purple', bg: '#8267a8', ink: '#fff' },
-    { name: 'orange', bg: '#d47b43', ink: '#fff' },
-    { name: 'teal', bg: '#3f8f88', ink: '#fff' }
+    { bg: '#d95f59', ink: '#fff' }, { bg: '#4f83b8', ink: '#fff' },
+    { bg: '#5c9b72', ink: '#fff' }, { bg: '#d5a83d', ink: '#2b2118' },
+    { bg: '#8267a8', ink: '#fff' }, { bg: '#d47b43', ink: '#fff' },
+    { bg: '#3f8f88', ink: '#fff' }
   ];
 
   function fallbackColor(book) {
@@ -83,11 +80,14 @@
     return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
   }
 
+  function fallbackTitleHtml(book) {
+    return '<span class="rr-cover__fallback-title" style="display:block;width:100%;padding:18px 10px 10px;text-align:center;font-size:.78rem;font-weight:800;line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;word-break:break-word;">' +
+      escapeHtml(book && book.title ? book.title : 'タイトルなし') + '</span>';
+  }
+
   function fallbackCoverHtml(book, sizeClass, favMark) {
     var color = fallbackColor(book);
-    var title = escapeHtml(book && book.title ? book.title : 'タイトルなし');
-    return '<div class="rr-cover rr-cover--fallback ' + sizeClass + '" style="background:' + color.bg + ';color:' + color.ink + ';">' +
-      favMark + '<span class="rr-cover__fallback-title">' + title + '</span></div>';
+    return '<div class="rr-cover rr-cover--fallback ' + sizeClass + '" style="background:' + color.bg + ';color:' + color.ink + ';">' + favMark + fallbackTitleHtml(book) + '</div>';
   }
 
   function coverHtml(book, opts) {
@@ -95,19 +95,17 @@
     var sizeClass = opts.sizeClass || '';
     var favMark = book.isFavorite ? '<span class="rr-cover__fav" aria-hidden="true">★</span>' : '';
     var color = fallbackColor(book);
-    var title = escapeHtml(book.title || 'タイトルなし');
 
     if (book.coverSource === 'api' && book.coverUrl) {
       return '<div class="rr-cover ' + sizeClass + ' rr-cover--has-image">' + favMark +
         '<img src="' + escapeHtml(book.coverUrl) + '" alt="" loading="lazy" ' +
-        'onerror="this.parentElement.style.background=\'' + color.bg + '\';this.parentElement.style.color=\'' + color.ink + '\';this.parentElement.classList.add(\'rr-cover--fallback\');this.remove();">' +
-        '<span class="rr-cover__fallback-title">' + title + '</span>' +
+        'onerror="var c=this.parentElement;c.style.background=\'' + color.bg + '\';c.style.color=\'' + color.ink + '\';c.classList.add(\'rr-cover--fallback\');var t=c.parentElement&&c.parentElement.querySelector(\'.rr-book-card__title\');if(t)t.style.display=\'none\';this.remove();c.insertAdjacentHTML(\'beforeend\',\'' + fallbackTitleHtml(book).replace(/'/g, '\\'') + '\');">' +
       '</div>';
     }
 
     if (book.coverSource === 'user' && book.coverImageId) {
       return '<div class="rr-cover ' + sizeClass + ' rr-cover--pending" data-cover-source="user" data-cover-image-id="' + escapeHtml(book.coverImageId) +
-        '" data-cover-title="' + title + '" style="background:' + color.bg + ';color:' + color.ink + ';">' + favMark +
+        '" data-cover-title="' + escapeHtml(book.title || 'タイトルなし') + '" style="background:' + color.bg + ';color:' + color.ink + ';">' + favMark +
         '<span class="rr-cover__spinner" aria-hidden="true"></span></div>';
     }
 
@@ -133,8 +131,10 @@
         } else {
           elm.classList.remove('rr-cover--pending');
           elm.classList.add('rr-cover--fallback');
-          var oldSpinner = elm.querySelector('.rr-cover__spinner');
-          if (oldSpinner) oldSpinner.outerHTML = '<span class="rr-cover__fallback-title">' + title + '</span>';
+          var spinner = elm.querySelector('.rr-cover__spinner');
+          if (spinner) spinner.outerHTML = '<span class="rr-cover__fallback-title" style="display:block;width:100%;padding:18px 10px 10px;text-align:center;font-size:.78rem;font-weight:800;line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;word-break:break-word;">' + escapeHtml(title) + '</span>';
+          var cardTitle = elm.parentElement && elm.parentElement.querySelector('.rr-book-card__title');
+          if (cardTitle) cardTitle.style.display = 'none';
         }
       });
     });
