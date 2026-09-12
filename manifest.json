@@ -1,7 +1,7 @@
 {
-  "name": "マガジンラック - 読書レコード",
-  "short_name": "マガジンラック",
-  "description": "読んだ本が並んでいく、自分だけの本棚アプリ。",
+  "name": "読書レコード",
+  "short_name": "読書レコード",
+  "description": "読んだ本を記録して、自分の読書の積み重ねを振り返る読書記録アプリ。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
