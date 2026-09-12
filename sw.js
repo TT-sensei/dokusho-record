@@ -5,7 +5,7 @@
  * 使えるようにする。
  * ============================================================ */
 
-var CACHE_NAME = 'reading-record-cache-v4';
+var CACHE_NAME = 'reading-record-cache-v5';
 
 var APP_SHELL = [
   './',
