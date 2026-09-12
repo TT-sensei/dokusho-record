@@ -10,12 +10,12 @@
   var STEP = 5;
 
   var DEFINITIONS = [
-    { id: 'total-reading', name: '読書レコード', description: '合計5冊ごと', icon: 'total' },
-    { id: 'monthly-reading', name: '今月の読書', description: '今月5冊ごと', icon: 'monthly' }
+    { id: 'total-reading', name: '読書レコード', description: '合計5冊ごと', icon: 'total', line: '合計で5冊読むごとに1つ' },
+    { id: 'monthly-reading', name: '今月の読書', description: '今月5冊ごと', icon: 'monthly', line: '今月5冊読むごとに1つ' }
   ];
 
   function counts(data) {
-    var books = global.RR.Books.countedBooks(data);
+    var books = Array.isArray(data.books) ? data.books : [];
     var now = new Date();
     var month = global.RR.Stats.countInMonth(books, now.getFullYear(), now.getMonth());
     var total = books.length;
@@ -32,11 +32,6 @@
     return { count: n * STEP, name: n * STEP + '冊バッジ' };
   }
 
-  function badgeIconUrl(icon) {
-    /* バッジ画像がなくても機能するよう、まず絵文字の代替表示を使う。 */
-    return './assets/badges/' + icon + '.png';
-  }
-
   function earnedTotal(data) { return counts(data).total; }
   function earnedMonthly(data) { return counts(data).monthly; }
 
@@ -46,7 +41,6 @@
     DEFINITIONS: DEFINITIONS,
     counts: counts,
     nextTarget: nextTarget,
-    badgeIconUrl: badgeIconUrl,
     earnedTotal: earnedTotal,
     earnedMonthly: earnedMonthly
   };
