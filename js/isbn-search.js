@@ -1,16 +1,13 @@
 /* ============================================================
  * isbn-search.js
- * ISBNから書誌情報を検索する。1つのAPIに依存せず、
- * Google Books / openBD / NDLサーチ を Promise.allSettled で
- * 並行取得し、互いの欠けを補い合う。
+ * 日本の学校利用を前提に、openBDを第一候補として書誌情報を取得し、
+ * 足りない情報がある場合だけGoogle Booksへフォールバックする。
  *
- * マージ方針:
- *   - タイトル・著者・表紙URL: 最初に見つかった値を採用
- *   - ページ数・価格: 全ソースの候補から最大値を採用
- *     (本文+あとがき等を含む値が反映されやすいため)
+ * 取得順:
+ *   1. openBD
+ *   2. openBDで見つからない/不足している場合のみGoogle Books
  *
- * どのソースが失敗してもアプリは落とさず、取得できた範囲の
- * 情報だけを返す(全滅時はtitleが空のオブジェクトを返す)。
+ * NDLサーチなど別ソースは使わず、取得元を明確にする。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -26,7 +23,9 @@
   }
 
   function toHalfWidthDigits(s) {
-    return String(s || '').replace(/[０-９]/g, function (m) { return String.fromCharCode(m.charCodeAt(0) - 0xFEE0); });
+    return String(s || '').replace(/[０-９]/g, function (m) {
+      return String.fromCharCode(m.charCodeAt(0) - 0xFEE0);
+    });
   }
 
   function extractCleanNum(v) {
@@ -36,7 +35,6 @@
     return isNaN(n) ? 0 : n;
   }
 
-  /** 説明文・extentなどの文字列から「ページ数らしき数値」を可能な限り拾う */
   function scanPageNumsDeeply(text) {
     if (!text) return [];
     var t = toHalfWidthDigits(text);
@@ -50,7 +48,6 @@
     return results;
   }
 
-  /** 著者名から年号や「著/編/訳/監修」等の付随語を取り除いて整形する */
   function cleanAuthorName(s) {
     if (!s) return '';
     var c = s
@@ -59,102 +56,129 @@
       .replace(/[／/,，、．.\[\]()（）]/g, ' ')
       .trim();
     var parts = Array.from(new Set(c.split(/\s+/).filter(function (x) { return x.length > 0; })));
-    // 他の候補に完全に含まれてしまう短い断片(表記ゆれの残骸)は除く
-    return parts.filter(function (x) { return !parts.some(function (o) { return o !== x && o.indexOf(x) !== -1; }); }).join(' ').trim();
+    return parts.filter(function (x) {
+      return !parts.some(function (o) { return o !== x && o.indexOf(x) !== -1; });
+    }).join(' ').trim();
   }
 
   function toHttps(url) {
     return url ? url.replace(/^http:\/\//, 'https://') : url;
   }
 
-  function fromGoogleBooks(isbn13, ctx) {
-    var url = 'https://www.googleapis.com/books/v1/volumes?q=isbn:' + encodeURIComponent(isbn13);
-    return fetchWithTimeout(url).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
-      if (!data || !Array.isArray(data.items) || !data.items[0]) return;
-      var item = data.items[0];
-      var info = item.volumeInfo || {};
-      if (!ctx.title && info.title) ctx.title = info.title;
-      if (!ctx.author && Array.isArray(info.authors)) ctx.author = cleanAuthorName(info.authors.join(' '));
-      if (!ctx.coverUrl && info.imageLinks) {
-        ctx.coverUrl = toHttps(info.imageLinks.thumbnail || info.imageLinks.smallThumbnail || '');
-      }
-      if (info.pageCount) ctx.pageCandidates.push(parseInt(info.pageCount, 10));
-      if (info.description) ctx.pageCandidates = ctx.pageCandidates.concat(scanPageNumsDeeply(info.description));
-      if (item.saleInfo && item.saleInfo.listPrice) {
-        ctx.priceCandidates.push(extractCleanNum(item.saleInfo.listPrice.amount));
-      }
-    }).catch(function () { /* このソースだけ諦めて続行 */ });
+  function createResult(isbn13) {
+    return {
+      title: '',
+      author: '',
+      coverUrl: '',
+      pageCandidates: [],
+      priceCandidates: [],
+      isbn: isbn13,
+      source: ''
+    };
   }
 
-  function fromOpenBD(isbn13, ctx) {
+  /** openBDを最優先で取得する */
+  function fromOpenBD(isbn13, result) {
     var url = 'https://api.openbd.jp/v1/get?isbn=' + encodeURIComponent(isbn13);
-    return fetchWithTimeout(url).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
-      if (!data || !data[0]) return;
+    return fetchWithTimeout(url).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (data) {
+      if (!data || !data[0]) return false;
+
       var summary = data[0].summary || {};
       var onix = data[0].onix || {};
-      if (!ctx.title && summary.title) ctx.title = summary.title;
-      if (!ctx.author && summary.author) ctx.author = cleanAuthorName(summary.author);
-      if (!ctx.coverUrl && summary.cover) ctx.coverUrl = toHttps(summary.cover);
-      if (summary.pages) ctx.pageCandidates.push(extractCleanNum(summary.pages));
+
+      if (summary.title) result.title = summary.title;
+      if (summary.author) result.author = cleanAuthorName(summary.author);
+      if (summary.cover) result.coverUrl = toHttps(summary.cover);
+      if (summary.pages) result.pageCandidates.push(extractCleanNum(summary.pages));
+
       try {
         var exts = onix.DescriptiveDetail && onix.DescriptiveDetail.Extent;
         if (Array.isArray(exts)) {
           exts.forEach(function (e) {
             if (['00', '05', '06', '07', '08', '11'].indexOf(e.ExtentType) !== -1) {
-              ctx.pageCandidates.push(extractCleanNum(e.ExtentValue));
+              result.pageCandidates.push(extractCleanNum(e.ExtentValue));
             }
           });
         }
-      } catch (e) { /* ONIX構造は書籍によって差があるため無視して続行 */ }
+      } catch (e) { /* ONIX構造の差は無視 */ }
+
       try {
         var prices = onix.ProductSupply && onix.ProductSupply.SupplyDetail && onix.ProductSupply.SupplyDetail.Price;
         if (Array.isArray(prices)) {
-          prices.forEach(function (p) { if (p.PriceAmount) ctx.priceCandidates.push(extractCleanNum(p.PriceAmount)); });
+          prices.forEach(function (p) {
+            if (p.PriceAmount) result.priceCandidates.push(extractCleanNum(p.PriceAmount));
+          });
         }
-      } catch (e) { /* 同上 */ }
-    }).catch(function () { /* このソースだけ諦めて続行 */ });
+      } catch (e) { /* ONIX構造の差は無視 */ }
+
+      result.source = 'openBD';
+      return true;
+    }).catch(function () {
+      return false;
+    });
   }
 
-  function fromNDL(isbn13, ctx) {
-    var url = 'https://ndlsearch.ndl.go.jp/api/opensearch?isbn=' + encodeURIComponent(isbn13);
-    return fetchWithTimeout(url).then(function (r) { return r.text(); }).then(function (text) {
-      var xml = new DOMParser().parseFromString(text, 'text/xml');
-      var item = xml.querySelector('item') || xml.getElementsByTagName('item')[0];
-      if (!item) return;
-      function getVal(tag) {
-        var el = item.getElementsByTagName(tag)[0] || item.getElementsByTagName('dc:' + tag)[0] || item.getElementsByTagName('dcterms:' + tag)[0];
-        return el ? el.textContent : '';
+  /** openBDで不足している場合だけGoogle Booksを取得する */
+  function fromGoogleBooks(isbn13, result) {
+    var url = 'https://www.googleapis.com/books/v1/volumes?q=isbn:' + encodeURIComponent(isbn13);
+    return fetchWithTimeout(url).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (data) {
+      if (!data || !Array.isArray(data.items) || !data.items[0]) return false;
+
+      var item = data.items[0];
+      var info = item.volumeInfo || {};
+
+      if (!result.title && info.title) result.title = info.title;
+      if (!result.author && Array.isArray(info.authors)) result.author = cleanAuthorName(info.authors.join(' '));
+      if (!result.coverUrl && info.imageLinks) {
+        result.coverUrl = toHttps(info.imageLinks.thumbnail || info.imageLinks.smallThumbnail || '');
       }
-      if (!ctx.title) ctx.title = getVal('title');
-      var desc = getVal('description');
-      if (desc) ctx.pageCandidates = ctx.pageCandidates.concat(scanPageNumsDeeply(desc));
-      var extent = getVal('extent');
-      if (extent) ctx.pageCandidates = ctx.pageCandidates.concat(scanPageNumsDeeply(extent));
-      var priceText = getVal('price');
-      if (priceText) ctx.priceCandidates.push(extractCleanNum(priceText));
-    }).catch(function () { /* NDLはCORS等の事情で失敗しうるため諦めて続行 */ });
+      if (info.pageCount) result.pageCandidates.push(parseInt(info.pageCount, 10));
+      if (info.description) result.pageCandidates = result.pageCandidates.concat(scanPageNumsDeeply(info.description));
+      if (item.saleInfo && item.saleInfo.listPrice) {
+        result.priceCandidates.push(extractCleanNum(item.saleInfo.listPrice.amount));
+      }
+
+      if (result.source !== 'openBD') result.source = 'googleBooks';
+      else result.source = 'openBD+googleBooks';
+      return true;
+    }).catch(function () {
+      return false;
+    });
   }
 
   /**
    * ISBN(13桁)から書誌情報を検索する。
-   * @returns {Promise<{title:string, author:string, coverUrl:string, pageCount:number, price:number, isbn:string}>}
+   * openBDを先に確認し、不足分だけGoogle Booksで補完する。
    */
   function lookupIsbn(isbn13) {
-    var ctx = { title: '', author: '', coverUrl: '', pageCandidates: [], priceCandidates: [] };
-    return Promise.allSettled([
-      fromGoogleBooks(isbn13, ctx),
-      fromOpenBD(isbn13, ctx),
-      fromNDL(isbn13, ctx)
-    ]).then(function () {
-      var pages = ctx.pageCandidates.filter(function (n) { return !isNaN(n) && n > 0; }).sort(function (a, b) { return b - a; });
-      var prices = ctx.priceCandidates.filter(function (n) { return !isNaN(n) && n > 0; }).sort(function (a, b) { return b - a; });
+    var result = createResult(isbn13);
+
+    return fromOpenBD(isbn13, result).then(function (openBdFound) {
+      // openBDが本を返していても、タイトルまたは表紙が欠けていればGoogle Booksで補完する。
+      if (!openBdFound || !result.title || !result.coverUrl) {
+        return fromGoogleBooks(isbn13, result);
+      }
+      return false;
+    }).then(function () {
+      var pages = result.pageCandidates
+        .filter(function (n) { return !isNaN(n) && n > 0; })
+        .sort(function (a, b) { return b - a; });
+      var prices = result.priceCandidates
+        .filter(function (n) { return !isNaN(n) && n > 0; })
+        .sort(function (a, b) { return b - a; });
+
       return {
-        title: ctx.title || '',
-        author: ctx.author || '',
-        coverUrl: ctx.coverUrl || '',
+        title: result.title || '',
+        author: result.author || '',
+        coverUrl: result.coverUrl || '',
         pageCount: pages.length > 0 ? pages[0] : 0,
         price: prices.length > 0 ? prices[0] : 0,
-        isbn: isbn13
+        isbn: isbn13,
+        source: result.source || ''
       };
     });
   }
