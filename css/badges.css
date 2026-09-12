@@ -1,0 +1,59 @@
+.rr-badges__head {
+  margin-bottom:18px;
+}
+.rr-badges__head h2 {
+  margin:0 0 5px;
+}
+.rr-badges__head p {
+  margin:0;
+  opacity:.72;
+}
+.rr-badge-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:14px;
+}
+.rr-badge-card {
+  display:flex;
+  align-items:center;
+  gap:15px;
+  padding:18px;
+  border:1px solid rgba(0,0,0,.08);
+  border-radius:16px;
+  background:rgba(255,255,255,.72);
+}
+.rr-badge-card.is-earned {
+  box-shadow:0 5px 18px rgba(0,0,0,.08);
+}
+.rr-badge-card.is-locked {
+  opacity:.58;
+}
+.rr-badge-medal {
+  width:62px;
+  height:62px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  flex:0 0 62px;
+  background:#f4ead3;
+  border:3px solid #d7bd7d;
+  font-size:30px;
+}
+.rr-badge-card__body h3 {
+  margin:0 0 3px;
+  font-size:1rem;
+}
+.rr-badge-card__copies {
+  margin:0 0 4px;
+  font-size:1.35rem;
+  font-weight:800;
+}
+.rr-badge-card__description,
+.rr-badge-card__progress {
+  margin:2px 0;
+  font-size:.82rem;
+  opacity:.72;
+}
+@media (max-width:600px) {
+  .rr-badge-grid { grid-template-columns:1fr; }
+}
