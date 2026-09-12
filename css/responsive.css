@@ -1,59 +1,82 @@
 /* ============================================================
  * responsive.css
- * スマートフォン縦画面を基準に組んだ style.css を、
- * タブレット・PC幅でも崩れず見やすいように調整する。
+ * タブレットでの利用を主軸に、幅に応じてレイアウトを最適化する。
+ *   - 700px以上: 下部タブ → 左レールのナビに切り替え(タブレット/PC)
+ *   - 棚のグリッド列数: スマホ3列 → タブレット縦4列 → 横5〜6列
  * ============================================================ */
 
-/* ---------------- タブレット (600px〜) ---------------- */
-@media (min-width: 600px) {
-  .rr-main { padding: 24px 28px calc(28px + env(safe-area-inset-bottom, 0px)); }
+/* ---------------- タブレット以上(700px〜): ナビを左レール化 ---------------- */
+@media (min-width: 700px) {
+  .rr-header { padding-left: calc(var(--nav-rail-width) + 18px); }
 
-  .rr-stat-row { grid-template-columns: 1fr 1fr 1fr; }
-  .rr-badge-grid { grid-template-columns: repeat(4, 1fr); }
-  .rr-record-list { grid-template-columns: 1fr 1fr; }
-  .rr-tabbar { max-width: 420px; margin: 0 auto; width: 100%; }
+  .rr-nav {
+    top: var(--header-height);
+    bottom: 0;
+    left: 0;
+    right: auto;
+    width: var(--nav-rail-width);
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    padding: 18px 6px calc(18px + env(safe-area-inset-bottom, 0px));
+    gap: 6px;
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    box-shadow: 4px 0 14px rgba(43, 33, 24, 0.06);
+  }
+  .rr-nav-btn { padding: 14px 4px; border-radius: var(--radius-md); }
+  .rr-nav-btn.is-active { background: #eaf3f1; }
+  .rr-nav-btn__icon { font-size: 1.5rem; }
+  .rr-nav-btn__label { font-size: 0.7rem; }
+
+  .rr-main {
+    margin-left: var(--nav-rail-width);
+    max-width: none;
+    padding: 26px 32px 40px;
+  }
+
+  .rr-shelf-toolbar { grid-template-columns: 1fr auto; align-items: center; }
 
   .rr-modal-overlay { align-items: center; }
-  .rr-modal {
-    border-radius: 20px;
-    max-width: 460px;
-    max-height: 80vh;
-  }
+  .rr-modal { border-radius: 20px; max-height: 82vh; }
 }
 
-/* ---------------- タブレット横向き・小型PC (900px〜) ---------------- */
+/* ---------------- タブレット縦向き目安(700〜899px): 棚4列 ---------------- */
+@media (min-width: 700px) and (max-width: 899px) {
+  .rr-shelf-grid { grid-template-columns: repeat(4, 1fr); gap: 26px 16px; }
+  .rr-method-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------------- タブレット横向き目安(900px〜) / PC: 棚5〜6列 ---------------- */
 @media (min-width: 900px) {
-  .rr-main { max-width: 900px; }
+  .rr-main { max-width: 1180px; }
+  .rr-shelf-grid { grid-template-columns: repeat(6, 1fr); gap: 28px 18px; }
+  .rr-method-grid { grid-template-columns: repeat(3, 1fr); }
+  .rr-method-card { grid-template-rows: none; grid-template-columns: 1fr; text-align: center; padding: 24px 16px; }
+  .rr-method-card__icon { grid-row: auto; margin: 0 auto 8px; }
 
-  .rr-view { gap: 18px; }
-
-  /* ホームの主要カードを横並びにして、余白を活かす */
-  .rr-home { grid-template-columns: 1.2fr 1fr; }
-  .rr-home .rr-card--hero { grid-column: 1; grid-row: 1 / span 2; }
-  .rr-home .rr-card--month { grid-column: 2; grid-row: 1; }
-  .rr-home .rr-stat-row { grid-column: 2; grid-row: 2; grid-template-columns: 1fr; align-content: start; }
-  .rr-home .rr-btn--cta { grid-column: 1 / -1; max-width: 360px; justify-self: center; }
-
-  .rr-badge-grid { grid-template-columns: repeat(6, 1fr); }
-  .rr-record-list { grid-template-columns: 1fr 1fr 1fr; }
-
-  .rr-bar-chart { height: 190px; }
+  .rr-card { padding: 24px; }
 }
 
-/* ---------------- PC (1200px〜) ---------------- */
-@media (min-width: 1200px) {
-  .rr-main { max-width: 1080px; }
-  .rr-nav { max-width: 1080px; left: 50%; transform: translateX(-50%); border-radius: 20px 20px 0 0; }
+@media (min-width: 900px) and (max-width: 1099px) {
+  .rr-shelf-grid { grid-template-columns: repeat(5, 1fr); }
 }
 
-/* ---------------- スマホの小型端末(横幅375px未満)向け微調整 ---------------- */
+/* ---------------- 大型ディスプレイ: 際限なく伸びないように上限を設ける ---------------- */
+@media (min-width: 1400px) {
+  .rr-main { max-width: 1320px; }
+  .rr-shelf-grid { grid-template-columns: repeat(7, 1fr); }
+}
+
+/* ---------------- スマホの小型端末向け微調整 ---------------- */
 @media (max-width: 359px) {
-  .rr-hero-number { font-size: 2.1rem; }
-  .rr-btn { font-size: 0.92rem; }
-  .rr-nav-btn__label { font-size: 0.56rem; }
+  .rr-shelf-grid { gap: 18px 8px; }
+  .rr-btn { font-size: 0.9rem; }
 }
 
-/* ---------------- 印刷(念のため、ナビ等は非表示に) ---------------- */
+/* ---------------- 印刷 ---------------- */
 @media print {
   .rr-nav, .rr-header, .rr-modal-root, .rr-toast-root { display: none !important; }
+  .rr-main { margin-left: 0 !important; }
 }
