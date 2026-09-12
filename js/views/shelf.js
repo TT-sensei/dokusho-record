@@ -1,6 +1,7 @@
 /* ============================================================
  * views/shelf.js
- * 本棚画面。表紙を主役にし、登録後も本棚から表紙を撮り直せる。
+ * 本棚画面。表紙表示 / 背表紙表示を切り替えられる。
+ * 本ごとの簡単な感想を記録し、感想に応じた色で表示する。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -14,6 +15,17 @@
   var searchText = '';
   var activeFilter = 'all';
   var pendingHighlightId = null;
+  var viewMode = loadViewMode();
+
+  function loadViewMode() {
+    try { return localStorage.getItem('rr-shelf-view') === 'spine' ? 'spine' : 'cover'; }
+    catch (e) { return 'cover'; }
+  }
+
+  function saveViewMode(mode) {
+    viewMode = mode === 'spine' ? 'spine' : 'cover';
+    try { localStorage.setItem('rr-shelf-view', viewMode); } catch (e) {}
+  }
 
   function setHighlight(id) { pendingHighlightId = id; }
 
@@ -39,6 +51,10 @@
               return '<button type="button" class="rr-chip' + (activeFilter === f.key ? ' is-active' : '') + '" data-filter="' + f.key + '">' + f.label + '</button>';
             }).join('') +
           '</div>' +
+          '<div class="rr-shelf-view-toggle" role="group" aria-label="本棚の表示方法">' +
+            '<button type="button" class="rr-chip' + (viewMode === 'cover' ? ' is-active' : '') + '" data-view-mode="cover">表紙</button>' +
+            '<button type="button" class="rr-chip' + (viewMode === 'spine' ? ' is-active' : '') + '" data-view-mode="spine">背表紙</button>' +
+          '</div>' +
         '</div>' +
         '<p class="rr-shelf-stats">今月 ' + monthCount + '冊・今年 ' + yearCount + '冊<span class="rr-shelf-stats__target"> (目標 ' + data.settings.annualTarget + '冊)</span></p>' +
         (books.length === 0 ? renderEmpty(data) : renderGrid(books)) +
@@ -51,11 +67,36 @@
     return '<p class="rr-empty">' + (hasAnyBooks ? '見つからなかったよ。検索条件を変えてみてね。' : 'まだ本が並んでいないよ。最初の1冊を登録してみよう!') + '</p>';
   }
 
-  function renderGrid(books) { return '<div class="rr-shelf-grid">' + books.map(renderCard).join('') + '</div>'; }
+  function renderGrid(books) {
+    if (viewMode === 'spine') {
+      return '<div class="rr-shelf-grid rr-shelf-grid--spine" style="grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:18px 10px;align-items:end;">' + books.map(renderSpineCard).join('') + '</div>';
+    }
+    return '<div class="rr-shelf-grid">' + books.map(renderCard).join('') + '</div>';
+  }
 
   function renderCard(book) {
     var highlight = (book.id === pendingHighlightId) ? ' rr-book-card--new' : '';
-    return '<button type="button" class="rr-book-card' + highlight + '" data-id="' + book.id + '">' + U.coverHtml(book) + '<span class="rr-book-card__title">' + U.escapeHtml(book.title) + '</span></button>';
+    var fallback = (!book.coverUrl || book.coverSource === 'none') && book.coverSource !== 'user';
+    return '<button type="button" class="rr-book-card' + highlight + (fallback ? ' rr-book-card--fallback' : '') + '" data-id="' + book.id + '">' + U.coverHtml(book) + '<span class="rr-book-card__title">' + U.escapeHtml(book.title) + '</span></button>';
+  }
+
+  function renderSpineCard(book) {
+    var color = U.fallbackColor(book);
+    var mood = U.moodLabel(book.mood);
+    var highlight = (book.id === pendingHighlightId) ? ' rr-spine-book--new' : '';
+    var fav = book.isFavorite ? '<span class="rr-spine-book__fav" aria-hidden="true">★</span>' : '';
+    return '<button type="button" class="rr-spine-book' + highlight + '" data-id="' + book.id + '" title="' + U.escapeHtml((book.title || '') + (mood ? ' / ' + mood : '')) + '" style="background:' + color.bg + ';color:' + color.ink + ';">' +
+      fav + '<span class="rr-spine-book__title">' + U.escapeHtml(book.title || 'タイトルなし') + '</span>' +
+      '<span class="rr-spine-book__date">' + U.escapeHtml((book.readDate || '').slice(5).replace('-', '/')) + '</span>' +
+    '</button>';
+  }
+
+  function renderMoodSection(book) {
+    return '<section class="rr-mood-section">' +
+      '<p class="rr-mood-section__title">この本、どんな感じだった？</p>' +
+      U.moodChoicesHtml(book.mood) +
+      '<p class="rr-mood-section__current">' + (book.mood ? U.moodLabel(book.mood) + ' を選択中' : 'まだ選んでいないよ') + '</p>' +
+    '</section>';
   }
 
   function renderDetail(book) {
@@ -66,7 +107,8 @@
         (book.author ? '<p class="rr-detail__row">' + U.escapeHtml(book.author) + '</p>' : '') +
         '<p class="rr-detail__row">登録日: ' + S.formatDateJp(book.registeredDate) + '</p>' +
         '<p class="rr-detail__row">読了日: ' + S.formatDateJp(book.readDate) + '</p>' +
-        (book.memo ? '<p class="rr-detail__memo">「' + U.escapeHtml(book.memo) + '」</p>' : '<p class="rr-detail__memo rr-detail__memo--empty">感想は記録されていません</p>') +
+        renderMoodSection(book) +
+        (book.memo ? '<p class="rr-detail__memo">「' + U.escapeHtml(book.memo) + '」</p>' : '<p class="rr-detail__memo rr-detail__memo--empty">ひとこと感想はまだ書いていません</p>') +
         '<div class="rr-detail__actions">' +
           '<button type="button" class="rr-btn rr-btn--favorite' + (book.isFavorite ? ' is-active' : '') + '" data-action="toggle-fav" data-id="' + book.id + '">' + (book.isFavorite ? '★ お気に入り済み' : '☆ お気に入りにする') + '</button>' +
           '<button type="button" class="rr-btn rr-btn--secondary" data-action="change-cover" data-id="' + book.id + '">📷 表紙を撮り直す</button>' +
@@ -122,6 +164,14 @@
     U.hydrateCovers(modalEl);
     var close = modalEl.querySelector('[data-action="detail-close"]');
     if (close) close.addEventListener('click', U.closeModal);
+    modalEl.querySelectorAll('[data-mood]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        ctx.actions.setMood(id, btn.getAttribute('data-mood'));
+        U.closeModal();
+        openDetail(data, ctx, id);
+        ctx.rerenderCurrentView();
+      });
+    });
     var fav = modalEl.querySelector('[data-action="toggle-fav"]');
     if (fav) fav.addEventListener('click', function () { ctx.actions.toggleFavorite(id); U.closeModal(); openDetail(data, ctx, id); });
     var coverBtn = modalEl.querySelector('[data-action="change-cover"]');
@@ -162,7 +212,13 @@
     container.querySelectorAll('[data-filter]').forEach(function (btn) {
       btn.addEventListener('click', function () { activeFilter = btn.getAttribute('data-filter'); ctx.rerenderCurrentView(); });
     });
-    container.querySelectorAll('.rr-book-card').forEach(function (card) {
+    container.querySelectorAll('[data-view-mode]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        saveViewMode(btn.getAttribute('data-view-mode'));
+        ctx.rerenderCurrentView();
+      });
+    });
+    container.querySelectorAll('.rr-book-card, .rr-spine-book').forEach(function (card) {
       card.addEventListener('click', function () { openDetail(data, ctx, card.getAttribute('data-id')); });
     });
     U.hydrateCovers(container);
@@ -171,7 +227,7 @@
       pendingHighlightId = null;
       setTimeout(function () {
         var cardEl = container.querySelector('[data-id="' + justAdded + '"]');
-        if (cardEl) cardEl.classList.remove('rr-book-card--new');
+        if (cardEl) cardEl.classList.remove('rr-book-card--new', 'rr-spine-book--new');
       }, 700);
     }
   }
