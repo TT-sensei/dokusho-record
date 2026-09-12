@@ -30,10 +30,7 @@
     opts = opts || {};
     var root = el('modal-root');
     if (!root) return;
-    root.innerHTML =
-      '<div class="rr-modal-overlay" data-close="' + (opts.dismissible === false ? 'false' : 'true') + '">' +
-        '<div class="rr-modal ' + (opts.wide ? 'rr-modal--wide' : '') + '" role="dialog" aria-modal="true">' + innerHtml + '</div>' +
-      '</div>';
+    root.innerHTML = '<div class="rr-modal-overlay" data-close="' + (opts.dismissible === false ? 'false' : 'true') + '"><div class="rr-modal ' + (opts.wide ? 'rr-modal--wide' : '') + '" role="dialog" aria-modal="true">' + innerHtml + '</div></div>';
     root.classList.add('is-open');
     var overlay = root.querySelector('.rr-modal-overlay');
     overlay.addEventListener('click', function (ev) {
@@ -53,20 +50,9 @@
     opts = opts || {};
     var okLabel = opts.okLabel || '削除する';
     var okClass = opts.okClass || 'rr-btn--danger';
-    openModal(
-      '<div class="rr-confirm">' +
-        '<p class="rr-confirm__message">' + escapeHtml(message) + '</p>' +
-        '<div class="rr-confirm__actions">' +
-          '<button type="button" class="rr-btn rr-btn--ghost" data-action="confirm-cancel">キャンセル</button>' +
-          '<button type="button" class="rr-btn ' + okClass + '" data-action="confirm-ok">' + escapeHtml(okLabel) + '</button>' +
-        '</div>' +
-      '</div>'
-    );
+    openModal('<div class="rr-confirm"><p class="rr-confirm__message">' + escapeHtml(message) + '</p><div class="rr-confirm__actions"><button type="button" class="rr-btn rr-btn--ghost" data-action="confirm-cancel">キャンセル</button><button type="button" class="rr-btn ' + okClass + '" data-action="confirm-ok">' + escapeHtml(okLabel) + '</button></div></div>');
     document.querySelector('[data-action="confirm-cancel"]').addEventListener('click', closeModal);
-    document.querySelector('[data-action="confirm-ok"]').addEventListener('click', function () {
-      closeModal();
-      onConfirm();
-    });
+    document.querySelector('[data-action="confirm-ok"]').addEventListener('click', function () { closeModal(); onConfirm(); });
   }
 
   function showAchievement(message) {
@@ -76,17 +62,20 @@
     var toastEl = root.querySelector('.rr-toast');
     requestAnimationFrame(function () { toastEl.classList.add('is-visible'); });
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () {
-      toastEl.classList.remove('is-visible');
-      setTimeout(function () { root.innerHTML = ''; }, 250);
-    }, 3400);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-visible'); setTimeout(function () { root.innerHTML = ''; }, 250); }, 3400);
   }
 
   /* ---------------- 表紙画像 ---------------- */
+  var FALLBACK_COLORS = [
+    { name: 'red', bg: '#d95f59', ink: '#fff' },
+    { name: 'blue', bg: '#4f83b8', ink: '#fff' },
+    { name: 'green', bg: '#5c9b72', ink: '#fff' },
+    { name: 'yellow', bg: '#d5a83d', ink: '#2b2118' },
+    { name: 'purple', bg: '#8267a8', ink: '#fff' },
+    { name: 'orange', bg: '#d47b43', ink: '#fff' },
+    { name: 'teal', bg: '#3f8f88', ink: '#fff' }
+  ];
 
-  // 同じ本は同じ色になるよう、タイトル/IDから色を決める。
-  // 再描画のたびに色が変わって本棚がちらつくのを防ぐ。
-  var FALLBACK_COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'teal'];
   function fallbackColor(book) {
     var source = String((book && (book.id || book.title)) || 'book');
     var hash = 0;
@@ -94,37 +83,35 @@
     return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
   }
 
-  function fallbackCoverHtml(book, sizeClass) {
+  function fallbackCoverHtml(book, sizeClass, favMark) {
+    var color = fallbackColor(book);
     var title = escapeHtml(book && book.title ? book.title : 'タイトルなし');
-    return '<div class="rr-cover rr-cover--fallback rr-cover--fallback-' + fallbackColor(book) + ' ' + sizeClass + '">' +
-      '<span class="rr-cover__fallback-title">' + title + '</span>' +
-    '</div>';
+    return '<div class="rr-cover rr-cover--fallback ' + sizeClass + '" style="background:' + color.bg + ';color:' + color.ink + ';">' +
+      favMark + '<span class="rr-cover__fallback-title">' + title + '</span></div>';
   }
 
-  /** 一覧・シェルフ用の表紙HTML。画像がない本はタイトルカードで表示 */
   function coverHtml(book, opts) {
     opts = opts || {};
     var sizeClass = opts.sizeClass || '';
     var favMark = book.isFavorite ? '<span class="rr-cover__fav" aria-hidden="true">★</span>' : '';
-    var fallback = fallbackCoverHtml(book, sizeClass).replace('<div class="rr-cover ', '<div class="rr-cover ' + '');
+    var color = fallbackColor(book);
+    var title = escapeHtml(book.title || 'タイトルなし');
 
     if (book.coverSource === 'api' && book.coverUrl) {
-      return (
-        '<div class="rr-cover ' + sizeClass + ' rr-cover--has-image">' + favMark +
-          '<img src="' + escapeHtml(book.coverUrl) + '" alt="" loading="lazy" ' +
-            'onerror="this.parentElement.classList.add(\'rr-cover--fallback\',\'rr-cover--fallback-' + fallbackColor(book) + '\');this.remove();">' +
-          '<span class="rr-cover__fallback-title">' + escapeHtml(book.title || 'タイトルなし') + '</span>' +
-        '</div>'
-      );
+      return '<div class="rr-cover ' + sizeClass + ' rr-cover--has-image">' + favMark +
+        '<img src="' + escapeHtml(book.coverUrl) + '" alt="" loading="lazy" ' +
+        'onerror="this.parentElement.style.background=\'' + color.bg + '\';this.parentElement.style.color=\'' + color.ink + '\';this.parentElement.classList.add(\'rr-cover--fallback\');this.remove();">' +
+        '<span class="rr-cover__fallback-title">' + title + '</span>' +
+      '</div>';
     }
+
     if (book.coverSource === 'user' && book.coverImageId) {
-      return (
-        '<div class="rr-cover ' + sizeClass + ' rr-cover--pending" data-cover-source="user" data-cover-image-id="' + escapeHtml(book.coverImageId) + '">' + favMark +
-          '<span class="rr-cover__spinner" aria-hidden="true"></span>' +
-        '</div>'
-      );
+      return '<div class="rr-cover ' + sizeClass + ' rr-cover--pending" data-cover-source="user" data-cover-image-id="' + escapeHtml(book.coverImageId) +
+        '" data-cover-title="' + title + '" style="background:' + color.bg + ';color:' + color.ink + ';">' + favMark +
+        '<span class="rr-cover__spinner" aria-hidden="true"></span></div>';
     }
-    return fallback;
+
+    return fallbackCoverHtml(book, sizeClass, favMark);
   }
 
   function hydrateCovers(container) {
@@ -132,6 +119,7 @@
     var pending = container.querySelectorAll('[data-cover-source="user"]');
     pending.forEach(function (elm) {
       var imageId = elm.getAttribute('data-cover-image-id');
+      var title = elm.getAttribute('data-cover-title') || 'タイトルなし';
       global.RR.ImageStore.getImage(imageId).then(function (dataUrl) {
         if (!elm.isConnected) return;
         if (dataUrl) {
@@ -139,28 +127,19 @@
           img.src = dataUrl;
           img.alt = '';
           elm.classList.remove('rr-cover--pending');
-          elm.querySelector('.rr-cover__spinner') && elm.querySelector('.rr-cover__spinner').remove();
+          var spinner = elm.querySelector('.rr-cover__spinner');
+          if (spinner) spinner.remove();
           elm.insertBefore(img, elm.firstChild);
         } else {
           elm.classList.remove('rr-cover--pending');
-          elm.classList.add('rr-cover--fallback', 'rr-cover--fallback-' + fallbackColor({ id: imageId, title: elm.getAttribute('data-cover-title') || 'タイトルなし' }));
-          var spinner = elm.querySelector('.rr-cover__spinner');
-          if (spinner) spinner.outerHTML = '<span class="rr-cover__fallback-title">タイトルなし</span>';
+          elm.classList.add('rr-cover--fallback');
+          var oldSpinner = elm.querySelector('.rr-cover__spinner');
+          if (oldSpinner) oldSpinner.outerHTML = '<span class="rr-cover__fallback-title">' + title + '</span>';
         }
       });
     });
   }
 
   global.RR = global.RR || {};
-  global.RR.UICommon = {
-    el: el,
-    escapeHtml: escapeHtml,
-    showToast: showToast,
-    showAchievement: showAchievement,
-    openModal: openModal,
-    closeModal: closeModal,
-    confirmDialog: confirmDialog,
-    coverHtml: coverHtml,
-    hydrateCovers: hydrateCovers
-  };
+  global.RR.UICommon = { el: el, escapeHtml: escapeHtml, showToast: showToast, showAchievement: showAchievement, openModal: openModal, closeModal: closeModal, confirmDialog: confirmDialog, coverHtml: coverHtml, hydrateCovers: hydrateCovers };
 })(window);
