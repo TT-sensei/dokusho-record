@@ -10,29 +10,23 @@
     return (
       '<section class="rr-view rr-settings">' +
         '<div class="rr-card">' +
-          '<p class="rr-card__label">目標設定</p>' +
-          '<label class="rr-field">' +
-            '<span>年間目標(冊)</span>' +
-            '<input type="number" id="rr-set-annual" min="1" max="9999" value="' + data.settings.annualTarget + '">' +
-          '</label>' +
-          '<label class="rr-field">' +
-            '<span>月間目標(冊)</span>' +
-            '<input type="number" id="rr-set-monthly" min="1" max="999" value="' + data.settings.monthlyTarget + '">' +
-          '</label>' +
+          '<p class="rr-card__label">目標(控えめな目安です)</p>' +
+          '<label class="rr-field"><span>年間目標(冊)</span><input type="number" id="rr-set-annual" min="1" max="9999" value="' + data.settings.annualTarget + '"></label>' +
+          '<label class="rr-field"><span>月間目標(冊)</span><input type="number" id="rr-set-monthly" min="1" max="999" value="' + data.settings.monthlyTarget + '"></label>' +
           '<button type="button" class="rr-btn rr-btn--primary" data-action="save-settings">保存する</button>' +
-          '<p class="rr-hint">目標を変更しても、過去の読書記録は変わりません。</p>' +
         '</div>' +
 
         '<div class="rr-card">' +
           '<p class="rr-card__label">データのバックアップ</p>' +
-          '<p class="rr-hint">この端末・このブラウザだけに記録が保存されています。機種変更やデータ消去に備えて、ときどきバックアップを保存しておこう。</p>' +
+          '<p class="rr-hint">本棚のデータはこの端末・このブラウザだけに保存されています。機種変更やデータ消去に備えて、ときどきバックアップを保存しておこう。</p>' +
+          '<label class="rr-field rr-field--checkbox"><input type="checkbox" id="rr-backup-images"><span>撮影した表紙画像も含める(ファイルが大きくなります)</span></label>' +
           '<button type="button" class="rr-btn rr-btn--secondary" data-action="export">💾 データを保存</button>' +
           '<button type="button" class="rr-btn rr-btn--secondary" data-action="import-trigger">📂 データを復元</button>' +
           '<input type="file" id="rr-import-file" accept="application/json" hidden>' +
         '</div>' +
 
         '<div class="rr-card rr-card--muted">' +
-          '<p class="rr-hint">📚 現在の記録: ' + data.books.length + '件(うち再読 ' + data.books.filter(function (b) { return b.isReread; }).length + '件)</p>' +
+          '<p class="rr-hint">📚 本棚の本: ' + data.books.length + '冊(お気に入り ' + data.books.filter(function (b) { return b.isFavorite; }).length + '冊)</p>' +
         '</div>' +
       '</section>'
     );
@@ -53,7 +47,8 @@
 
     var exportBtn = container.querySelector('[data-action="export"]');
     if (exportBtn) exportBtn.addEventListener('click', function () {
-      ctx.actions.exportData();
+      var includeImages = document.getElementById('rr-backup-images').checked;
+      ctx.actions.exportData(includeImages);
     });
 
     var importTrigger = container.querySelector('[data-action="import-trigger"]');

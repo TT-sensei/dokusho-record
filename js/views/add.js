@@ -1,33 +1,35 @@
 /* ============================================================
  * views/add.js
- * 本の登録画面。「バーコード」「手入力」の2方式を明確に分ける。
+ * 本の登録。3方式(ISBNで探す/表紙を撮る/写真から選ぶ)を明確に
+ * 分け、どれかが使えなくても他の方式で必ず登録できるようにする。
  * ============================================================ */
 (function (global) {
   'use strict';
   var U = global.RR.UICommon;
   var S = global.RR.Stats;
-  var Barcode = global.RR.Barcode;
-  var API = global.RR.API;
   var Books = global.RR.Books;
-  var Navi = global.RR.Navi;
+  var Barcode = global.RR.Barcode;
+  var Camera = global.RR.Camera;
+  var ImageStore = global.RR.ImageStore;
+  var ISBNSearch = global.RR.ISBNSearch;
+
   var vs = null;
-  var lastContainer = null;
-  var lastData = null;
-  var lastCtx = null;
+  var lastContainer = null, lastData = null, lastCtx = null;
 
   function freshState() {
     return {
-      tab: Barcode.isSupported() ? 'barcode' : 'manual',
-      scanStatus: 'idle',
+      mode: 'menu', // menu | isbn | photo
+      // ISBNで探す
+      scanStatus: 'idle', // idle | scanning | error
       scanErrorMessage: '',
-      lookupStatus: 'idle',
-      foundBook: null,
-      readDate: S.todayStr(),
-      memo: '',
-      cameras: [],
-      cameraStatus: 'idle',
-      selectedCameraId: '',
-      manual: { title: '', author: '', isbn: '', readDate: S.todayStr(), memo: '' }
+      isbnInput: '',
+      lookupStatus: 'idle', // idle | loading | done
+      result: null,
+      // 表紙を撮る/写真から選ぶ
+      photoBusy: false,
+      previewDataUrl: '',
+      // 登録フォーム共通
+      form: null
     };
   }
 
@@ -35,148 +37,359 @@
   function onLeave() { Barcode.stop(); }
 
   function rerenderSelf() {
-    if (!lastContainer || !lastData || !lastCtx) return;
+    if (!lastContainer) return;
     lastContainer.innerHTML = render(lastData);
     bind(lastContainer, lastData, lastCtx);
   }
 
-  function render(data) {
+  function defaultForm(overrides) {
+    return Object.assign({
+      title: '', author: '', isbn: '', pageCount: '', price: '',
+      readDate: S.todayStr(), memo: '', isFavorite: false
+    }, overrides || {});
+  }
+
+  /* ---------------- render ---------------- */
+
+  function render() {
     if (!vs) vs = freshState();
-    return '<section class="rr-view rr-add">' +
-      '<div class="rr-tabbar" role="tablist">' +
-        '<button type="button" class="rr-tab' + (vs.tab === 'barcode' ? ' is-active' : '') + '" data-tab="barcode">📷 バーコードで登録</button>' +
-        '<button type="button" class="rr-tab' + (vs.tab === 'manual' ? ' is-active' : '') + '" data-tab="manual">✍️ 手入力で登録</button>' +
-      '</div>' +
-      (vs.tab === 'barcode' ? renderBarcodeTab(Barcode.isSupported()) : renderManualTab()) +
-    '</section>';
+    if (vs.mode === 'isbn') return renderIsbnMode();
+    if (vs.mode === 'photo') return renderPhotoMode();
+    return renderMenu();
   }
 
-  function renderBarcodeTab(supported) {
-    if (!supported) return '<div class="rr-card">' + Navi.bubbleHtml('notFound', 'お使いの端末ではバーコード読み取りに対応していないみたい。手入力で登録してみよう!') + '<button type="button" class="rr-btn rr-btn--primary" data-action="switch-manual">✍️ 手入力で登録する</button></div>';
-    if (vs.lookupStatus === 'loading') return '<div class="rr-card rr-card--center"><div class="rr-spinner" aria-hidden="true"></div><p>書籍情報を検索中...</p></div>';
-    if (vs.lookupStatus === 'found' && vs.foundBook) return renderFoundBookConfirm(vs.foundBook);
-    if (vs.lookupStatus === 'notfound') return '<div class="rr-card">' + Navi.bubbleHtml('notFound') + '<button type="button" class="rr-btn rr-btn--primary" data-action="switch-manual">✍️ 手入力で登録する</button><button type="button" class="rr-btn rr-btn--ghost" data-action="scan-retry">もう一度スキャンする</button></div>';
-    if (vs.scanStatus === 'error') return '<div class="rr-card">' + cameraSelectorHtml() + '<p class="rr-error-text">⚠️ ' + U.escapeHtml(vs.scanErrorMessage || 'カメラを使用できませんでした。') + '</p><button type="button" class="rr-btn rr-btn--primary" data-action="switch-manual">✍️ 手入力で登録する</button><button type="button" class="rr-btn rr-btn--ghost" data-action="scan-retry">もう一度試す</button></div>';
-    if (vs.scanStatus === 'scanning' || vs.scanStatus === 'requesting') return '<div class="rr-card rr-card--scan">' + cameraSelectorHtml() + '<div class="rr-scan-frame"><video id="rr-scan-video" class="rr-scan-video" playsinline muted></video></div><p class="rr-scan-hint">' + (vs.scanStatus === 'requesting' ? 'カメラを起動しています...' : '本の裏表紙などにあるバーコードを枠内に映してね') + '</p><button type="button" class="rr-btn rr-btn--ghost" data-action="scan-cancel">キャンセル</button></div>';
-    return '<div class="rr-card rr-card--center">' + Navi.bubbleHtml('scanHint') + cameraSelectorHtml() + '<button type="button" class="rr-btn rr-btn--cta" data-action="scan-start">📷 スキャン開始</button></div>';
+  function renderMenu() {
+    return (
+      '<section class="rr-view rr-add">' +
+        '<p class="rr-add-lead">どうやって登録する?</p>' +
+        '<div class="rr-method-grid">' +
+          '<button type="button" class="rr-method-card" data-mode="isbn">' +
+            '<span class="rr-method-card__icon" aria-hidden="true">🔍</span>' +
+            '<span class="rr-method-card__title">ISBNで探す</span>' +
+            '<span class="rr-method-card__desc">バーコードを読み取る、または数字を入力する</span>' +
+          '</button>' +
+          '<button type="button" class="rr-method-card" data-mode="photo" data-photo-mode="camera">' +
+            '<span class="rr-method-card__icon" aria-hidden="true">📷</span>' +
+            '<span class="rr-method-card__title">表紙を撮る</span>' +
+            '<span class="rr-method-card__desc">カメラで表紙を撮影する</span>' +
+          '</button>' +
+          '<button type="button" class="rr-method-card" data-mode="photo" data-photo-mode="library">' +
+            '<span class="rr-method-card__icon" aria-hidden="true">🖼</span>' +
+            '<span class="rr-method-card__title">写真から選ぶ</span>' +
+            '<span class="rr-method-card__desc">端末に保存済みの写真を選ぶ</span>' +
+          '</button>' +
+        '</div>' +
+      '</section>'
+    );
   }
 
-  function cameraSelectorHtml() {
-    var html = '<label class="rr-field"><span>📷 カメラを選ぶ</span><select id="rr-camera-select"><option value="">自動（背面カメラ）</option>';
-    vs.cameras.forEach(function (camera, index) {
-      var label = friendlyCameraName(camera, index);
-      html += '<option value="' + U.escapeHtml(camera.deviceId) + '"' + (camera.deviceId === vs.selectedCameraId ? ' selected' : '') + '>' + U.escapeHtml(label) + '</option>';
-    });
-    html += '</select>';
-    if (vs.cameraStatus === 'loading') html += '<small>カメラを調べています...</small>';
-    else if (vs.cameras.length === 0) html += '<small>「スキャン開始」を押すとカメラを確認できます。</small>';
-    html += '</label>';
-    return html;
+  /* ---------- ISBNで探す ---------- */
+
+  function renderIsbnMode() {
+    return (
+      '<section class="rr-view rr-add">' +
+        backLink() +
+        '<h2 class="rr-add-heading">🔍 ISBNで探す</h2>' +
+        (vs.lookupStatus === 'loading' ? renderLoading() :
+          vs.lookupStatus === 'done' ? renderIsbnResultForm() :
+          renderIsbnInput()) +
+      '</section>'
+    );
   }
 
-  function friendlyCameraName(camera, index) {
-    var label = camera.label || '';
-    if (/back|rear|environment|背面|後面/i.test(label)) return '背面カメラ';
-    if (/front|user|前面|インカメラ/i.test(label)) return '前面カメラ';
-    return 'カメラ ' + (index + 1);
+  function renderLoading() {
+    return '<div class="rr-card rr-card--center"><div class="rr-spinner" aria-hidden="true"></div><p>しらべています...</p></div>';
   }
 
-  function renderFoundBookConfirm(book) {
-    return '<div class="rr-card"><div class="rr-found-book">' + U.coverHtml(book.coverUrl, book.title, 'rr-cover--md') + '<div class="rr-found-book__meta"><p class="rr-found-book__title">' + U.escapeHtml(book.title) + '</p>' + (book.author ? '<p class="rr-found-book__author">' + U.escapeHtml(book.author) + '</p>' : '') + (book.publisher ? '<p class="rr-found-book__publisher">' + U.escapeHtml(book.publisher) + '</p>' : '') + '</div></div>' + confirmFieldsHtml() + '<button type="button" class="rr-btn rr-btn--cta" data-action="submit-found">この本を登録する</button><button type="button" class="rr-btn rr-btn--ghost" data-action="scan-retry">別の本を探す</button></div>';
+  function renderIsbnInput() {
+    return (
+      '<div class="rr-card">' +
+        (vs.scanStatus === 'scanning'
+          ? '<div class="rr-scan-frame"><div id="rr-scanner-target" class="rr-scanner-target"></div><div class="rr-scan-guide"></div></div>' +
+            '<button type="button" class="rr-btn rr-btn--ghost" data-action="scan-stop">スキャンをやめる</button>'
+          : '<button type="button" class="rr-btn rr-btn--cta" data-action="scan-start">📷 カメラでバーコードをよむ</button>'
+        ) +
+        (vs.scanStatus === 'error' ? '<p class="rr-error-text">⚠️ ' + U.escapeHtml(vs.scanErrorMessage) + '</p>' : '') +
+        '<p class="rr-or-divider">または</p>' +
+        '<label class="rr-field">' +
+          '<span>本のうらにある13桁くらいの数字を入力</span>' +
+          '<input type="text" id="rr-isbn-manual" inputmode="numeric" placeholder="978XXXXXXXXXX" value="' + U.escapeHtml(vs.isbnInput) + '">' +
+        '</label>' +
+        '<button type="button" class="rr-btn rr-btn--primary" data-action="isbn-search">さがす</button>' +
+        '<button type="button" class="rr-btn rr-btn--ghost" data-action="isbn-skip">ISBNが分からない(手入力で登録する)</button>' +
+      '</div>'
+    );
   }
 
-  function confirmFieldsHtml() {
-    return '<label class="rr-field"><span>読んだ日</span><input type="date" id="rr-confirm-date" value="' + vs.readDate + '" max="' + S.todayStr() + '"></label><label class="rr-field"><span>ひとこと感想(任意)</span><textarea id="rr-confirm-memo" placeholder="おもしろかった! など" maxlength="200">' + U.escapeHtml(vs.memo) + '</textarea></label>';
+  function renderIsbnResultForm() {
+    var r = vs.result;
+    var notFound = !r.title;
+    return (
+      '<div class="rr-card">' +
+        (notFound
+          ? '<p class="rr-hint">本の情報が見つからなかったよ。タイトルだけでも入力して登録できます。</p>'
+          : '<div class="rr-result-cover">' +
+              (r.coverUrl
+                ? '<img src="' + U.escapeHtml(r.coverUrl) + '" alt="" onerror="this.parentElement.classList.add(\'rr-result-cover--missing\');this.remove();">'
+                : '') +
+              (!r.coverUrl ? '<p class="rr-hint">表紙が見つからなかったよ。登録後に「表紙を撮る」で追加できます。</p>' : '') +
+            '</div>'
+        ) +
+        '<label class="rr-field"><span>タイトル' + (notFound ? '<em class="rr-required">必須</em>' : '') + '</span><input type="text" id="rr-r-title" value="' + U.escapeHtml(r.title) + '"></label>' +
+        '<label class="rr-field"><span>著者</span><input type="text" id="rr-r-author" value="' + U.escapeHtml(r.author) + '"></label>' +
+        '<div class="rr-field-row">' +
+          '<label class="rr-field"><span>ページ数</span><input type="number" id="rr-r-pages" class="' + (r.pageCount ? '' : 'rr-field--missing') + '" value="' + (r.pageCount || '') + '"></label>' +
+          '<label class="rr-field"><span>価格(円)</span><input type="number" id="rr-r-price" class="' + (r.price ? '' : 'rr-field--missing') + '" value="' + (r.price || '') + '"></label>' +
+        '</div>' +
+        commonFieldsHtml() +
+        '<button type="button" class="rr-btn rr-btn--cta" data-action="isbn-register">本棚に追加する</button>' +
+        '<button type="button" class="rr-btn rr-btn--ghost" data-action="isbn-retry">別のISBNを試す</button>' +
+      '</div>'
+    );
   }
 
-  function renderManualTab() {
-    var m = vs.manual;
-    return '<div class="rr-card"><label class="rr-field"><span>本の題名<em class="rr-required">必須</em></span><input type="text" id="rr-m-title" value="' + U.escapeHtml(m.title) + '" placeholder="ももたろう"></label><label class="rr-field"><span>著者(任意)</span><input type="text" id="rr-m-author" value="' + U.escapeHtml(m.author) + '"></label><label class="rr-field"><span>ISBN(任意)</span><input type="text" id="rr-m-isbn" value="' + U.escapeHtml(m.isbn) + '" placeholder="9ではじまる13けたの数字" inputmode="numeric"><small>本の裏表紙にある「9ではじまる13けた」の数字だよ。</small></label><label class="rr-field"><span>読んだ日</span><input type="date" id="rr-m-date" value="' + m.readDate + '" max="' + S.todayStr() + '"></label><label class="rr-field"><span>ひとこと感想(任意)</span><textarea id="rr-m-memo" placeholder="主人公が好き。 など" maxlength="200">' + U.escapeHtml(m.memo) + '</textarea></label><button type="button" class="rr-btn rr-btn--cta" data-action="submit-manual">登録する</button></div>';
+  /* ---------- 表紙を撮る / 写真から選ぶ ---------- */
+
+  function renderPhotoMode() {
+    return (
+      '<section class="rr-view rr-add">' +
+        backLink() +
+        '<h2 class="rr-add-heading">📷 表紙を登録</h2>' +
+        (vs.photoBusy ? renderLoading() :
+          vs.previewDataUrl ? renderPhotoConfirm() :
+          '<div class="rr-card rr-card--center"><p class="rr-hint">写真を選んでね</p></div>'
+        ) +
+      '</section>'
+    );
   }
+
+  function renderPhotoConfirm() {
+    var f = vs.form;
+    return (
+      '<div class="rr-card">' +
+        '<div class="rr-photo-preview"><img src="' + vs.previewDataUrl + '" alt=""></div>' +
+        '<label class="rr-field"><span>タイトル<em class="rr-required">必須</em></span><input type="text" id="rr-p-title" value="' + U.escapeHtml(f.title) + '" placeholder="ももたろう"></label>' +
+        '<label class="rr-field"><span>著者(任意)</span><input type="text" id="rr-p-author" value="' + U.escapeHtml(f.author) + '"></label>' +
+        '<label class="rr-field"><span>ISBN(任意・分かれば情報を自動入力できます)</span>' +
+          '<div class="rr-field-inline">' +
+            '<input type="text" id="rr-p-isbn" inputmode="numeric" value="' + U.escapeHtml(f.isbn) + '">' +
+            '<button type="button" class="rr-btn-inline" data-action="photo-lookup">検索</button>' +
+          '</div>' +
+        '</label>' +
+        commonFieldsHtml() +
+        '<button type="button" class="rr-btn rr-btn--cta" data-action="photo-register">本棚に追加する</button>' +
+        '<button type="button" class="rr-btn rr-btn--ghost" data-action="photo-retake">写真を選び直す</button>' +
+      '</div>'
+    );
+  }
+
+  function commonFieldsHtml() {
+    var f = vs.form || defaultForm();
+    return (
+      '<label class="rr-field"><span>読んだ日</span><input type="date" id="rr-c-date" value="' + f.readDate + '" max="' + S.todayStr() + '"></label>' +
+      '<label class="rr-field"><span>ひとこと感想(任意)</span><textarea id="rr-c-memo" maxlength="300" placeholder="おもしろかった! など">' + U.escapeHtml(f.memo) + '</textarea></label>' +
+      '<label class="rr-field rr-field--checkbox"><input type="checkbox" id="rr-c-fav" ' + (f.isFavorite ? 'checked' : '') + '><span>お気に入りに登録する</span></label>'
+    );
+  }
+
+  function backLink() {
+    return '<button type="button" class="rr-back-link" data-action="back-to-menu">← 登録方法を選び直す</button>';
+  }
+
+  /* ---------------- bind ---------------- */
 
   function bind(container, data, ctx) {
     lastContainer = container; lastData = data; lastCtx = ctx;
-    container.querySelectorAll('[data-tab]').forEach(function (btn) { btn.addEventListener('click', function () { Barcode.stop(); vs.tab = btn.getAttribute('data-tab'); vs.scanStatus = 'idle'; vs.lookupStatus = 'idle'; rerenderSelf(); }); });
-    bindBarcodeHandlers(container, ctx);
-    bindManualHandlers(container, ctx);
+
+    container.querySelectorAll('[data-mode]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var mode = btn.getAttribute('data-mode');
+        if (mode === 'isbn') {
+          vs.mode = 'isbn';
+          rerenderSelf();
+        } else if (mode === 'photo') {
+          var useCamera = btn.getAttribute('data-photo-mode') === 'camera';
+          startPhotoFlow(useCamera);
+        }
+      });
+    });
+
+    var backBtn = container.querySelector('[data-action="back-to-menu"]');
+    if (backBtn) backBtn.addEventListener('click', function () {
+      Barcode.stop();
+      vs = freshState();
+      rerenderSelf();
+    });
+
+    bindIsbnHandlers(container, ctx);
+    bindPhotoHandlers(container, ctx);
   }
 
-  function bindBarcodeHandlers(container, ctx) {
-    var cameraSelect = container.querySelector('#rr-camera-select');
-    if (cameraSelect) cameraSelect.addEventListener('change', function () {
-      vs.selectedCameraId = cameraSelect.value;
-      if (vs.scanStatus === 'scanning') {
-        Barcode.setCamera(vs.selectedCameraId);
-        Barcode.stop();
-        setTimeout(function () { var v = document.getElementById('rr-scan-video'); if (v) Barcode.start(v, handleDetected, handleScanError); }, 0);
-      } else {
-        Barcode.setCamera(vs.selectedCameraId);
+  function bindIsbnHandlers(container, ctx) {
+    var scanStartBtn = container.querySelector('[data-action="scan-start"]');
+    if (scanStartBtn) scanStartBtn.addEventListener('click', function () {
+      vs.scanStatus = 'scanning';
+      vs.scanErrorMessage = '';
+      rerenderSelf();
+      var target = document.getElementById('rr-scanner-target');
+      if (target) {
+        Barcode.start(target, function (code) {
+          vs.scanStatus = 'idle';
+          runIsbnLookup(code);
+        }, function (err) {
+          vs.scanStatus = 'error';
+          vs.scanErrorMessage = Barcode.isSupported()
+            ? 'カメラを起動できませんでした。カメラの使用を許可しているか確認してね。'
+            : 'バーコード読み取り機能を読み込めませんでした。数字を入力して探してみてね。';
+          rerenderSelf();
+        });
       }
     });
 
-    var startBtn = container.querySelector('[data-action="scan-start"]');
-    if (startBtn) startBtn.addEventListener('click', beginScan);
-    var cancelBtn = container.querySelector('[data-action="scan-cancel"]');
-    if (cancelBtn) cancelBtn.addEventListener('click', function () { Barcode.stop(); vs.scanStatus = 'idle'; rerenderSelf(); });
-    var retryBtn = container.querySelector('[data-action="scan-retry"]');
-    if (retryBtn) retryBtn.addEventListener('click', function () { vs.lookupStatus = 'idle'; vs.foundBook = null; vs.scanStatus = 'idle'; rerenderSelf(); });
-    var switchManualBtn = container.querySelector('[data-action="switch-manual"]');
-    if (switchManualBtn) switchManualBtn.addEventListener('click', function () { Barcode.stop(); vs.tab = 'manual'; vs.scanStatus = 'idle'; vs.lookupStatus = 'idle'; rerenderSelf(); });
-    var submitFoundBtn = container.querySelector('[data-action="submit-found"]');
-    if (submitFoundBtn) submitFoundBtn.addEventListener('click', function () {
-      var dateEl = document.getElementById('rr-confirm-date'); var memoEl = document.getElementById('rr-confirm-memo');
-      ctx.actions.submitBook({ title: vs.foundBook.title, author: vs.foundBook.author, publisher: vs.foundBook.publisher, coverUrl: vs.foundBook.coverUrl, isbn: vs.foundBook.isbn, readDate: dateEl ? dateEl.value : vs.readDate, memo: memoEl ? memoEl.value : '', entryMethod: 'barcode' });
-    });
-    if (vs.scanStatus === 'scanning') {
-      var videoEl = document.getElementById('rr-scan-video');
-      if (videoEl && !document.getElementById('quagga-reader')) attachScan(videoEl);
-    }
-  }
-
-  function loadCameras() {
-    vs.cameraStatus = 'loading';
-    Barcode.getCameras().then(function (cameras) {
-      vs.cameras = cameras;
-      vs.cameraStatus = 'ready';
+    var scanStopBtn = container.querySelector('[data-action="scan-stop"]');
+    if (scanStopBtn) scanStopBtn.addEventListener('click', function () {
+      Barcode.stop();
+      vs.scanStatus = 'idle';
       rerenderSelf();
-    }).catch(function () { vs.cameraStatus = 'error'; rerenderSelf(); });
+    });
+
+    var manualInput = document.getElementById('rr-isbn-manual');
+    if (manualInput) manualInput.addEventListener('input', function () { vs.isbnInput = manualInput.value; });
+
+    var searchBtn = container.querySelector('[data-action="isbn-search"]');
+    if (searchBtn) searchBtn.addEventListener('click', function () {
+      var digits = (vs.isbnInput || '').replace(/[^0-9Xx]/g, '');
+      if (digits.length < 9) { U.showToast('数字が短すぎるみたい。もう一度確認してね'); return; }
+      runIsbnLookup(digits);
+    });
+
+    var skipBtn = container.querySelector('[data-action="isbn-skip"]');
+    if (skipBtn) skipBtn.addEventListener('click', function () {
+      vs.result = { title: '', author: '', coverUrl: '', pageCount: 0, price: 0, isbn: '' };
+      vs.form = defaultForm();
+      vs.lookupStatus = 'done';
+      rerenderSelf();
+    });
+
+    var registerBtn = container.querySelector('[data-action="isbn-register"]');
+    if (registerBtn) registerBtn.addEventListener('click', function () {
+      var title = document.getElementById('rr-r-title').value.trim();
+      if (!title) { U.showToast('タイトルを入力してね'); return; }
+      var input = {
+        title: title,
+        author: document.getElementById('rr-r-author').value.trim(),
+        isbn: vs.result.isbn,
+        pageCount: document.getElementById('rr-r-pages').value,
+        price: document.getElementById('rr-r-price').value,
+        coverSource: vs.result.coverUrl ? 'api' : 'none',
+        coverUrl: vs.result.coverUrl || '',
+        readDate: document.getElementById('rr-c-date').value,
+        memo: document.getElementById('rr-c-memo').value.trim(),
+        isFavorite: document.getElementById('rr-c-fav').checked,
+        entryMethod: 'isbn'
+      };
+      ctx.actions.registerBook(input);
+    });
+
+    var retryBtn = container.querySelector('[data-action="isbn-retry"]');
+    if (retryBtn) retryBtn.addEventListener('click', function () {
+      vs.lookupStatus = 'idle';
+      vs.result = null;
+      vs.isbnInput = '';
+      rerenderSelf();
+    });
   }
 
-  function beginScan() {
-    vs.scanStatus = 'requesting';
+  function runIsbnLookup(rawIsbn) {
+    var isbn13 = Books.toCanonicalIsbn(rawIsbn);
+    vs.lookupStatus = 'loading';
     rerenderSelf();
-    Barcode.setCamera(vs.selectedCameraId);
-    var videoEl = document.getElementById('rr-scan-video');
-    vs.scanStatus = 'scanning';
+    ISBNSearch.lookupIsbn(isbn13).then(function (result) {
+      vs.result = result;
+      vs.form = defaultForm({ isbn: result.isbn });
+      vs.lookupStatus = 'done';
+      rerenderSelf();
+    });
+  }
+
+  function bindPhotoHandlers(container, ctx) {
+    var lookupBtn = container.querySelector('[data-action="photo-lookup"]');
+    if (lookupBtn) lookupBtn.addEventListener('click', function () {
+      var isbnVal = document.getElementById('rr-p-isbn').value.replace(/[^0-9Xx]/g, '');
+      if (isbnVal.length < 9) { U.showToast('数字が短すぎるみたい'); return; }
+      // 現在入力中の値をフォームへ退避してから検索へ
+      vs.form.title = document.getElementById('rr-p-title').value;
+      vs.form.author = document.getElementById('rr-p-author').value;
+      vs.form.readDate = document.getElementById('rr-c-date').value;
+      vs.form.memo = document.getElementById('rr-c-memo').value;
+      vs.form.isFavorite = document.getElementById('rr-c-fav').checked;
+
+      var isbn13 = Books.toCanonicalIsbn(isbnVal);
+      vs.photoBusy = true;
+      rerenderSelf();
+      ISBNSearch.lookupIsbn(isbn13).then(function (result) {
+        vs.photoBusy = false;
+        vs.form.isbn = isbn13;
+        if (result.title) vs.form.title = result.title;
+        if (result.author) vs.form.author = result.author;
+        U.showToast(result.title ? '情報を入力したよ' : '情報が見つからなかったよ');
+        rerenderSelf();
+      });
+    });
+
+    var retakeBtn = container.querySelector('[data-action="photo-retake"]');
+    if (retakeBtn) retakeBtn.addEventListener('click', function () {
+      vs.previewDataUrl = '';
+      vs.pickedFile = null;
+      rerenderSelf();
+    });
+
+    var registerBtn = container.querySelector('[data-action="photo-register"]');
+    if (registerBtn) registerBtn.addEventListener('click', function () {
+      var title = document.getElementById('rr-p-title').value.trim();
+      if (!title) { U.showToast('タイトルを入力してね'); return; }
+      var input = {
+        title: title,
+        author: document.getElementById('rr-p-author').value.trim(),
+        isbn: document.getElementById('rr-p-isbn').value.trim(),
+        readDate: document.getElementById('rr-c-date').value,
+        memo: document.getElementById('rr-c-memo').value.trim(),
+        isFavorite: document.getElementById('rr-c-fav').checked,
+        entryMethod: vs.entryMethodForPhoto || 'photo',
+        _previewDataUrl: vs.previewDataUrl // app.js側でIndexedDBへ保存する
+      };
+      ctx.actions.registerBookWithPhoto(input);
+    });
+  }
+
+  function startPhotoFlow(useCamera) {
+    vs.mode = 'photo';
+    vs.entryMethodForPhoto = useCamera ? 'photo' : 'library';
+    vs.photoBusy = true;
     rerenderSelf();
-    setTimeout(function () {
-      var v = document.getElementById('rr-scan-video');
-      if (v) attachScan(v);
-      loadCameras();
-    }, 0);
+    Camera.pickImage(useCamera).then(function (file) {
+      if (!file) {
+        vs.photoBusy = false;
+        vs.mode = 'menu';
+        vs = freshState();
+        rerenderSelf();
+        U.showToast('写真が選ばれなかったよ');
+        return;
+      }
+      return ImageStore.fileToCompressedDataUrl(file).then(function (dataUrl) {
+        vs.previewDataUrl = dataUrl;
+        vs.form = defaultForm();
+        vs.photoBusy = false;
+        rerenderSelf();
+      });
+    }).catch(function (err) {
+      vs.photoBusy = false;
+      rerenderSelf();
+      U.showToast('画像の読み込みに失敗したよ: ' + (err && err.message ? err.message : ''));
+    });
   }
 
-  function handleDetected(result) {
-    var raw = Books.normalizeIsbn(result.rawValue); var isbn13 = Books.toCanonicalIsbn(raw);
-    vs.lookupStatus = 'loading'; rerenderSelf();
-    API.lookupIsbn(isbn13).then(function (info) { if (info) { vs.foundBook = info; vs.lookupStatus = 'found'; } else { vs.foundBook = null; vs.lookupStatus = 'notfound'; vs.manual.isbn = isbn13; } rerenderSelf(); });
-  }
-
-  function handleScanError(err) {
-    vs.scanStatus = 'error';
-    vs.scanErrorMessage = 'カメラを起動できませんでした。カメラの使用を許可しているか確認してね。';
-    rerenderSelf();
-  }
-
-  function attachScan(videoEl) { Barcode.start(videoEl, handleDetected, handleScanError); }
-
-  function bindManualHandlers(container, ctx) {
-    var titleEl = document.getElementById('rr-m-title'); var authorEl = document.getElementById('rr-m-author'); var isbnEl = document.getElementById('rr-m-isbn'); var dateEl = document.getElementById('rr-m-date'); var memoEl = document.getElementById('rr-m-memo');
-    [titleEl, authorEl, isbnEl, dateEl, memoEl].forEach(function (elm) { if (!elm) return; elm.addEventListener('input', function () { vs.manual.title = titleEl ? titleEl.value : vs.manual.title; vs.manual.author = authorEl ? authorEl.value : vs.manual.author; vs.manual.isbn = isbnEl ? isbnEl.value : vs.manual.isbn; vs.manual.readDate = dateEl ? dateEl.value : vs.manual.readDate; vs.manual.memo = memoEl ? memoEl.value : vs.manual.memo; }); });
-    var submitBtn = container.querySelector('[data-action="submit-manual"]');
-    if (submitBtn) submitBtn.addEventListener('click', function () { if (!vs.manual.title || !vs.manual.title.trim()) { U.showToast('本の題名を入力してね'); return; } ctx.actions.submitBook({ title: vs.manual.title, author: vs.manual.author, isbn: vs.manual.isbn, readDate: vs.manual.readDate, memo: vs.manual.memo, entryMethod: 'manual' }); });
-  }
-
-  global.RR = global.RR || {}; global.RR.Views = global.RR.Views || {};
+  global.RR = global.RR || {};
+  global.RR.Views = global.RR.Views || {};
   global.RR.Views.add = { render: render, bind: bind, onEnter: onEnter, onLeave: onLeave };
 })(window);
