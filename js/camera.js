@@ -11,10 +11,6 @@
 (function (global) {
   'use strict';
 
-  /**
-   * @param {boolean} useCamera true: 表紙を撮る(capture=environment) / false: 写真から選ぶ
-   * @returns {Promise<File|null>} キャンセル時はnullでresolveする
-   */
   function pickImage(useCamera) {
     return new Promise(function (resolve) {
       var input = document.createElement('input');
@@ -32,18 +28,54 @@
       }
 
       input.addEventListener('change', function () {
-        var file = input.files && input.files[0] ? input.files[0] : null;
-        finish(file);
+        finish(input.files && input.files[0] ? input.files[0] : null);
       });
 
-      // キャンセル検知用(対応ブラウザのみ): フォーカスが戻ってきてもchangeが
-      // 発火しない=キャンセルされた可能性が高いが、確実ではないため
-      // 呼び出し側は「まだ選ばれていない」状態のUIを保てるようにしておく。
       document.body.appendChild(input);
       input.click();
     });
   }
 
+  function fileToDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file) { resolve(null); return; }
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 既存の登録画面(add.js)との互換用。
+  // 「表紙を撮る」ではカメラを起動し、「写真から選ぶ」ではライブラリを開く。
+  function pickPhoto(onSuccess, onError) {
+    pickImage(true).then(fileToDataUrl).then(function (dataUrl) {
+      if (dataUrl) {
+        onSuccess(dataUrl);
+      } else if (onError) {
+        onError();
+      }
+    }).catch(function () {
+      if (onError) onError();
+    });
+  }
+
+  function pickFromLibrary(onSuccess, onError) {
+    pickImage(false).then(fileToDataUrl).then(function (dataUrl) {
+      if (dataUrl) {
+        onSuccess(dataUrl);
+      } else if (onError) {
+        onError();
+      }
+    }).catch(function () {
+      if (onError) onError();
+    });
+  }
+
   global.RR = global.RR || {};
-  global.RR.Camera = { pickImage: pickImage };
+  global.RR.Camera = {
+    pickImage: pickImage,
+    pickPhoto: pickPhoto,
+    pickFromLibrary: pickFromLibrary
+  };
 })(window);
