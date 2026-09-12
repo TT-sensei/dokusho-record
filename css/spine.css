@@ -1,22 +1,40 @@
-/* 背表紙表示：タイトルを上から下へ縦書き */
-.rr-shelf-grid--spine .rr-spine-book > span:nth-of-type(2) {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  white-space: normal;
-  word-break: break-all;
-  overflow: hidden;
+/* 背表紙表示：タイトルを日本語の縦書きで上から下へ */
+.rr-shelf-grid--spine .rr-spine-title {
+  writing-mode: vertical-rl !important;
+  text-orientation: mixed !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow: hidden !important;
   display: block !important;
-  width: auto !important;
-  max-width: none;
-  height: 145px;
-  max-height: 145px;
+  width: 1.6em !important;
+  max-width: 1.6em !important;
+  height: 145px !important;
+  max-height: 145px !important;
+  margin: 0 auto !important;
   font-size: .82rem !important;
+  font-weight: 800 !important;
   line-height: 1.35 !important;
-  letter-spacing: .04em;
+  letter-spacing: .04em !important;
+  text-align: start !important;
   -webkit-line-clamp: unset !important;
   -webkit-box-orient: unset !important;
+  flex: 0 0 145px !important;
 }
 
 .rr-shelf-grid--spine .rr-spine-book {
   min-height: 184px;
+}
+
+.rr-shelf-grid--spine .rr-spine-date {
+  flex: 0 0 auto;
+  font-size: .62rem;
+  opacity: .8;
+  margin-top: 7px;
+}
+
+.rr-shelf-grid--spine .rr-spine-favorite {
+  position: absolute;
+  right: 5px;
+  top: 4px;
+  font-size: .7rem;
 }
