@@ -135,7 +135,6 @@ button, input, textarea { font: inherit; color: inherit; }
   font-size: 0.68rem; font-weight: 700; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* 棚板: 各カードの足元に置き、同じ行に並ぶカードどうしで視覚的に連結させる */
 .rr-book-card::after {
   content: "";
   position: absolute;
@@ -252,9 +251,27 @@ button, input, textarea { font: inherit; color: inherit; }
 
 /* ---------------- ISBN検索結果 / 写真プレビュー ---------------- */
 .rr-result-cover { text-align: center; margin-bottom: 10px; }
-.rr-result-cover img { max-width: 140px; max-height: 200px; border-radius: 6px; box-shadow: var(--shadow); }
+.rr-result-cover img {
+  width: auto !important;
+  height: auto !important;
+  max-width: 140px !important;
+  max-height: 200px !important;
+  object-fit: contain;
+  display: inline-block;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
 .rr-photo-preview { text-align: center; margin-bottom: 10px; }
-.rr-photo-preview img { max-width: 100%; max-height: 320px; border-radius: 8px; box-shadow: var(--shadow); }
+.rr-photo-preview img {
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 320px !important;
+  object-fit: contain;
+  display: inline-block;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
 
 /* ---------------- モーダル / トースト ---------------- */
 .rr-modal-root { position: fixed; inset: 0; z-index: 100; display: none; pointer-events: none; }
