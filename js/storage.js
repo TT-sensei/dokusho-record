@@ -40,6 +40,7 @@
       registeredDate: typeof b.registeredDate === 'string' && b.registeredDate ? b.registeredDate : today,
       readDate: typeof b.readDate === 'string' && b.readDate ? b.readDate : today,
       memo: typeof b.memo === 'string' ? b.memo : '',
+      mood: typeof b.mood === 'string' ? b.mood : '',
       isFavorite: !!b.isFavorite,
       entryMethod: (b.entryMethod === 'isbn' || b.entryMethod === 'photo' || b.entryMethod === 'library') ? b.entryMethod : 'manual',
       createdAt: typeof b.createdAt === 'string' ? b.createdAt : new Date().toISOString()
