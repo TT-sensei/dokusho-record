@@ -1,7 +1,14 @@
 /* ============================================================
  * ui-common.js
- * モーダル、トースト、バッジ獲得演出(紙吹雪込み)など、
+ * モーダル、トースト、確認ダイアログ、表紙画像の描画など、
  * 複数の画面で共通して使うUI部品をまとめる。
+ *
+ * 表紙画像は2種類の由来を持つため描画方法が異なる:
+ *   - coverSource: 'api'  → coverUrl をそのまま<img>で表示(失敗時は
+ *                            プレースホルダーに切り替え、「表紙を撮る」へ誘導)
+ *   - coverSource: 'user' → IndexedDBから非同期取得するため、
+ *                            いったんプレースホルダーを描画してから
+ *                            hydrateCovers() で差し替える
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -14,22 +21,17 @@
 
   /* ---------------- トースト ---------------- */
   var toastTimer = null;
-  function showToast(message, opts) {
-    opts = opts || {};
+  function showToast(message) {
     var root = el('toast-root');
     if (!root) return;
-    root.innerHTML =
-      '<div class="rr-toast">' +
-        (opts.naviHtml || '') +
-        '<div class="rr-toast__text">' + escapeHtml(message) + '</div>' +
-      '</div>';
+    root.innerHTML = '<div class="rr-toast"><div class="rr-toast__text">' + escapeHtml(message) + '</div></div>';
     var toastEl = root.querySelector('.rr-toast');
     requestAnimationFrame(function () { toastEl.classList.add('is-visible'); });
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
       toastEl.classList.remove('is-visible');
       setTimeout(function () { root.innerHTML = ''; }, 250);
-    }, opts.duration || 3200);
+    }, 2600);
   }
 
   /* ---------------- モーダル ---------------- */
@@ -39,14 +41,12 @@
     if (!root) return;
     root.innerHTML =
       '<div class="rr-modal-overlay" data-close="' + (opts.dismissible === false ? 'false' : 'true') + '">' +
-        '<div class="rr-modal" role="dialog" aria-modal="true">' + innerHtml + '</div>' +
+        '<div class="rr-modal ' + (opts.wide ? 'rr-modal--wide' : '') + '" role="dialog" aria-modal="true">' + innerHtml + '</div>' +
       '</div>';
     root.classList.add('is-open');
     var overlay = root.querySelector('.rr-modal-overlay');
     overlay.addEventListener('click', function (ev) {
-      if (ev.target === overlay && overlay.getAttribute('data-close') === 'true') {
-        closeModal();
-      }
+      if (ev.target === overlay && overlay.getAttribute('data-close') === 'true') closeModal();
     });
     return root.querySelector('.rr-modal');
   }
@@ -58,99 +58,6 @@
     root.innerHTML = '';
   }
 
-  /* ---------------- 簡易紙吹雪(外部ライブラリが読めればそちらを優先) ---------------- */
-  function fireConfetti() {
-    try {
-      if (typeof global.confetti === 'function') {
-        global.confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
-        return;
-      }
-    } catch (e) { /* 外部ライブラリ失敗時はフォールバックへ */ }
-    fireConfettiFallback();
-  }
-
-  function fireConfettiFallback() {
-    var canvas = document.createElement('canvas');
-    canvas.className = 'rr-confetti-canvas';
-    canvas.width = global.innerWidth;
-    canvas.height = global.innerHeight;
-    document.body.appendChild(canvas);
-    var ctx = canvas.getContext('2d');
-    var colors = ['#e7a72d', '#ee6a52', '#2f8b68', '#2762d4', '#8558c7'];
-    var particles = [];
-    for (var i = 0; i < 70; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: -20 - Math.random() * canvas.height * 0.3,
-        r: 4 + Math.random() * 5,
-        c: colors[i % colors.length],
-        vy: 2 + Math.random() * 3,
-        vx: -1.5 + Math.random() * 3,
-        rot: Math.random() * Math.PI,
-        vrot: -0.2 + Math.random() * 0.4
-      });
-    }
-    var frames = 0;
-    var maxFrames = 130;
-    function tick() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(function (p) {
-        p.x += p.vx; p.y += p.vy; p.rot += p.vrot;
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.rot);
-        ctx.fillStyle = p.c;
-        ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
-        ctx.restore();
-      });
-      frames++;
-      if (frames < maxFrames) {
-        requestAnimationFrame(tick);
-      } else {
-        canvas.remove();
-      }
-    }
-    requestAnimationFrame(tick);
-  }
-
-  /* ---------------- 獲得演出キュー(バッジ・目標達成をまとめて順番に見せる) ---------------- */
-  /**
-   * @param {Array<{type:'badge'|'goal', naviScene:string, title:string, subtitle?:string}>} items
-   * @param {Function} onAllDone
-   */
-  function showCelebrationQueue(items, onAllDone) {
-    if (!items || items.length === 0) {
-      if (onAllDone) onAllDone();
-      return;
-    }
-    var index = 0;
-    function showNext() {
-      if (index >= items.length) {
-        closeModal();
-        if (onAllDone) onAllDone();
-        return;
-      }
-      var item = items[index];
-      index++;
-      var naviHtml = global.RR.Navi.bubbleHtml(item.naviScene);
-      openModal(
-        '<div class="rr-celebration">' +
-          '<div class="rr-celebration__badgeicon">' + (item.iconHtml || '🎉') + '</div>' +
-          '<h2 class="rr-celebration__title">' + escapeHtml(item.title) + '</h2>' +
-          (item.subtitle ? '<p class="rr-celebration__subtitle">' + escapeHtml(item.subtitle) + '</p>' : '') +
-          naviHtml +
-          '<button type="button" class="rr-btn rr-btn--primary" data-action="celebration-next">つぎへ</button>' +
-        '</div>',
-        { dismissible: false }
-      );
-      fireConfetti();
-      var btn = document.querySelector('[data-action="celebration-next"]');
-      if (btn) btn.addEventListener('click', showNext);
-    }
-    showNext();
-  }
-
-  /* ---------------- 汎用: 確認ダイアログ ---------------- */
   function confirmDialog(message, onConfirm, opts) {
     opts = opts || {};
     var okLabel = opts.okLabel || '削除する';
@@ -171,29 +78,68 @@
     });
   }
 
-  /* ---------------- 進捗バー(共通パーツ) ---------------- */
-  function progressBarHtml(current, target, opts) {
-    opts = opts || {};
-    var pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
-    return (
-      '<div class="rr-progress' + (opts.className ? ' ' + opts.className : '') + '">' +
-        '<div class="rr-progress__track"><div class="rr-progress__bar" style="width:' + pct + '%"></div></div>' +
-      '</div>'
-    );
+  /** 控えめな達成表示(過度な演出は入れない) */
+  function showAchievement(message) {
+    var root = el('toast-root');
+    if (!root) return;
+    root.innerHTML = '<div class="rr-toast rr-toast--achievement"><span aria-hidden="true">✨</span><div class="rr-toast__text">' + escapeHtml(message) + '</div></div>';
+    var toastEl = root.querySelector('.rr-toast');
+    requestAnimationFrame(function () { toastEl.classList.add('is-visible'); });
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.classList.remove('is-visible');
+      setTimeout(function () { root.innerHTML = ''; }, 250);
+    }, 3400);
   }
 
-  /** 表紙画像 or プレースホルダーを表示するimg要素のHTML */
-  function coverHtml(coverUrl, title, sizeClass) {
-    var cls = 'rr-cover' + (sizeClass ? ' ' + sizeClass : '');
-    if (coverUrl) {
+  /* ---------------- 表紙画像 ---------------- */
+
+  /** 一覧・シェルフ用の表紙HTML(未取得の由来ならプレースホルダー) */
+  function coverHtml(book, opts) {
+    opts = opts || {};
+    var sizeClass = opts.sizeClass || '';
+    var favMark = book.isFavorite ? '<span class="rr-cover__fav" aria-hidden="true">★</span>' : '';
+    if (book.coverSource === 'api' && book.coverUrl) {
       return (
-        '<div class="' + cls + '">' +
-          '<img src="' + escapeHtml(coverUrl) + '" alt="" loading="lazy" ' +
+        '<div class="rr-cover ' + sizeClass + '">' + favMark +
+          '<img src="' + escapeHtml(book.coverUrl) + '" alt="" loading="lazy" ' +
             'onerror="this.parentElement.classList.add(\'rr-cover--placeholder\');this.remove();">' +
         '</div>'
       );
     }
-    return '<div class="' + cls + ' rr-cover--placeholder"><span aria-hidden="true">📕</span></div>';
+    if (book.coverSource === 'user' && book.coverImageId) {
+      return (
+        '<div class="rr-cover ' + sizeClass + ' rr-cover--pending" data-cover-source="user" data-cover-image-id="' + escapeHtml(book.coverImageId) + '">' + favMark +
+          '<span class="rr-cover__spinner" aria-hidden="true"></span>' +
+        '</div>'
+      );
+    }
+    return '<div class="rr-cover ' + sizeClass + ' rr-cover--placeholder">' + favMark + '<span aria-hidden="true">📕</span></div>';
+  }
+
+  /** container内の「IndexedDB由来でまだ読み込んでいない表紙」を非同期で差し替える */
+  function hydrateCovers(container) {
+    if (!container) return;
+    var pending = container.querySelectorAll('[data-cover-source="user"]');
+    pending.forEach(function (elm) {
+      var imageId = elm.getAttribute('data-cover-image-id');
+      global.RR.ImageStore.getImage(imageId).then(function (dataUrl) {
+        if (!elm.isConnected) return; // 描画し直されて既にDOMから消えている場合は何もしない
+        if (dataUrl) {
+          var img = document.createElement('img');
+          img.src = dataUrl;
+          img.alt = '';
+          elm.classList.remove('rr-cover--pending');
+          elm.querySelector('.rr-cover__spinner') && elm.querySelector('.rr-cover__spinner').remove();
+          elm.insertBefore(img, elm.firstChild);
+        } else {
+          elm.classList.remove('rr-cover--pending');
+          elm.classList.add('rr-cover--placeholder');
+          var spinner = elm.querySelector('.rr-cover__spinner');
+          if (spinner) spinner.outerHTML = '<span aria-hidden="true">📕</span>';
+        }
+      });
+    });
   }
 
   global.RR = global.RR || {};
@@ -201,12 +147,11 @@
     el: el,
     escapeHtml: escapeHtml,
     showToast: showToast,
+    showAchievement: showAchievement,
     openModal: openModal,
     closeModal: closeModal,
-    fireConfetti: fireConfetti,
-    showCelebrationQueue: showCelebrationQueue,
     confirmDialog: confirmDialog,
-    progressBarHtml: progressBarHtml,
-    coverHtml: coverHtml
+    coverHtml: coverHtml,
+    hydrateCovers: hydrateCovers
   };
 })(window);

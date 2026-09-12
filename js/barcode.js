@@ -1,166 +1,86 @@
 /* ============================================================
  * barcode.js
- * カメラ映像からISBNバーコードを読み取る。
- * QuaggaJSを使用。カメラを選択してスキャンできる。
+ * QuaggaJSでカメラ映像からISBN(EAN-13)バーコードを検出する。
+ * ネイティブのBarcodeDetectorは環境によって未対応のため、
+ * 互換性を優先してQuaggaJSを採用する(index.htmlでCDN読み込み)。
+ *
+ * 「表紙を撮る」(camera.js)とは目的も実装も異なるため、
+ * このファイルはバーコード検出専用にする。
  * ============================================================ */
 (function (global) {
   'use strict';
 
-  var stream = null;
-  var stopped = true;
-  var target = null;
-  var onDetectCallback = null;
-  var onErrorCallback = null;
-  var lastValue = null;
-  var lastDetectedAt = 0;
-  var selectedDeviceId = '';
+  var running = false;
+  var onDetectedCallback = null;
+  var processing = false;
 
   function isSupported() {
-    return !!(global.Quagga && global.navigator && global.navigator.mediaDevices && global.navigator.mediaDevices.getUserMedia);
+    return typeof global.Quagga !== 'undefined';
   }
 
-  function getCameras() {
-    if (!isSupported()) return Promise.resolve([]);
-    return global.navigator.mediaDevices.enumerateDevices().then(function (devices) {
-      return devices.filter(function (d) { return d.kind === 'videoinput'; }).map(function (d, index) {
-        var label = d.label || ('カメラ ' + (index + 1));
-        return { deviceId: d.deviceId, label: label, index: index };
-      });
-    });
-  }
-
-  function setCamera(deviceId) {
-    selectedDeviceId = deviceId || '';
-  }
-
-  function start(videoEl, onDetect, onError) {
+  /**
+   * @param {HTMLElement} targetEl QuaggaJSがvideo/canvasを差し込むコンテナ要素
+   * @param {(code:string)=>void} onDetected 有効なEAN-13を検出した時(1回だけ呼ばれる)
+   * @param {(err:Error)=>void} onError
+   */
+  function start(targetEl, onDetected, onError) {
     stop();
-    target = videoEl;
-    onDetectCallback = onDetect;
-    onErrorCallback = onError;
-    lastValue = null;
-    lastDetectedAt = 0;
-    stopped = false;
-
-    if (!global.Quagga) {
-      onError(new Error('QuaggaJSを読み込めませんでした'));
+    if (!isSupported()) {
+      onError(new Error('バーコード読み取り機能を読み込めませんでした'));
       return;
     }
-    if (!global.navigator.mediaDevices || !global.navigator.mediaDevices.getUserMedia) {
-      onError(new Error('このブラウザではカメラを利用できません'));
-      return;
-    }
-
-    var container = videoEl.parentElement || videoEl;
-    container.classList.add('barcode-scanner-container');
-
-    var reader = document.createElement('div');
-    reader.id = 'quagga-reader';
-    reader.style.width = '100%';
-    reader.style.height = '100%';
-    reader.style.position = 'relative';
-    reader.style.overflow = 'hidden';
-    videoEl.style.display = 'none';
-    container.appendChild(reader);
-
-    var cameraConstraints = {
-      width: { min: 640 },
-      height: { min: 480 },
-      aspectRatio: { min: 1, max: 2 }
-    };
-
-    if (selectedDeviceId) {
-      cameraConstraints.deviceId = { exact: selectedDeviceId };
-    } else {
-      cameraConstraints.facingMode = { ideal: 'environment' };
-    }
+    processing = false;
+    onDetectedCallback = onDetected;
 
     global.Quagga.init({
       inputStream: {
         name: 'Live',
         type: 'LiveStream',
-        target: reader,
-        constraints: cameraConstraints,
-        area: {
-          top: '20%',
-          right: '10%',
-          left: '10%',
-          bottom: '20%'
-        }
+        target: targetEl,
+        constraints: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        area: { top: '10%', bottom: '10%' }
       },
-      locator: {
-        patchSize: 'medium',
-        halfSample: true
-      },
-      numOfWorkers: 2,
-      frequency: 10,
       decoder: { readers: ['ean_reader'] },
-      locate: true
+      frequency: 10,
+      numOfWorkers: 2,
+      locator: { patchSize: 'medium', halfSample: true }
     }, function (err) {
       if (err) {
-        cleanupReader();
-        stopped = true;
-        onErrorCallback && onErrorCallback(err);
-        return;
-      }
-      if (stopped) {
-        global.Quagga.stop();
-        cleanupReader();
+        onError(err);
         return;
       }
       global.Quagga.start();
-      bindDetected();
+      running = true;
     });
-  }
 
-  function bindDetected() {
-    global.Quagga.offDetected(handleDetected);
     global.Quagga.onDetected(handleDetected);
   }
 
-  function handleDetected(result) {
-    if (stopped || !result || !result.codeResult) return;
-    var value = (result.codeResult.code || '').replace(/[^0-9]/g, '');
-    if (value.length !== 13) return;
-
-    var now = Date.now();
-    if (value === lastValue && now - lastDetectedAt < 1500) return;
-    lastValue = value;
-    lastDetectedAt = now;
-
-    var callback = onDetectCallback;
+  function handleDetected(data) {
+    if (!running || processing) return;
+    var code = data && data.codeResult && data.codeResult.code;
+    if (!code || code.length !== 13) return;
+    // チェックディジットで誤検出をふるいにかける
+    if (global.RR.Books && !global.RR.Books.isValidIsbn13(code)) return;
+    processing = true;
+    var cb = onDetectedCallback;
     stop();
-    if (callback) callback({ rawValue: value });
-  }
-
-  function cleanupReader() {
-    var reader = document.getElementById('quagga-reader');
-    if (reader && reader.parentNode) reader.parentNode.removeChild(reader);
-    if (target) target.style.display = '';
+    if (cb) cb(code);
   }
 
   function stop() {
-    stopped = true;
-    if (global.Quagga) {
-      try { global.Quagga.offDetected(handleDetected); } catch (e) {}
-      try { global.Quagga.stop(); } catch (e) {}
+    running = false;
+    processing = false;
+    if (isSupported()) {
+      try { global.Quagga.offDetected(handleDetected); } catch (e) { /* noop */ }
+      try { global.Quagga.stop(); } catch (e) { /* noop */ }
     }
-    if (stream) {
-      stream.getTracks().forEach(function (t) { t.stop(); });
-      stream = null;
-    }
-    cleanupReader();
-    target = null;
-    onDetectCallback = null;
-    onErrorCallback = null;
   }
 
   global.RR = global.RR || {};
-  global.RR.Barcode = {
-    isSupported: isSupported,
-    getCameras: getCameras,
-    setCamera: setCamera,
-    start: start,
-    stop: stop
-  };
+  global.RR.Barcode = { isSupported: isSupported, start: start, stop: stop };
 })(window);

@@ -1,49 +1,37 @@
 /* ============================================================
  * app.js
  * SPAのルーティング、状態(data)の保持、各画面からのアクションの
- * 受け口(orchestration)を担当する。個々の描画ロジックは
- * js/views/*.js に、データ操作ロジックは storage/books/stats/badges
- * に委譲する。
+ * 受け口を担当する。
  * ============================================================ */
 (function (global) {
   'use strict';
 
-  var ROUTES = ['home', 'add', 'records', 'stats', 'badges', 'settings'];
+  var ROUTES = ['shelf', 'add', 'settings'];
 
-  var Storage, Books, Badges, Navi, Backup, U, Views, RRStats;
+  var Storage, Books, Backup, ImageStore, U, Views, RRStats;
 
-  var state = {
-    data: null,
-    route: 'home'
-  };
+  var state = { data: null, route: 'shelf' };
 
   function currentRouteFromHash() {
     var h = location.hash.replace(/^#\/?/, '');
-    return ROUTES.indexOf(h) !== -1 ? h : 'home';
+    return ROUTES.indexOf(h) !== -1 ? h : 'shelf';
   }
 
   function onHashChange() {
     var newRoute = currentRouteFromHash();
     var prevView = Views[state.route];
-    if (prevView && state.route !== newRoute && typeof prevView.onLeave === 'function') {
-      prevView.onLeave();
-    }
+    if (prevView && state.route !== newRoute && typeof prevView.onLeave === 'function') prevView.onLeave();
     state.route = newRoute;
     var nextView = Views[state.route];
-    if (nextView && typeof nextView.onEnter === 'function') {
-      nextView.onEnter();
-    }
+    if (nextView && typeof nextView.onEnter === 'function') nextView.onEnter();
     renderCurrentView();
     updateNavActive();
   }
 
   function navigate(route) {
     var target = '#/' + route;
-    if (location.hash === target) {
-      onHashChange();
-    } else {
-      location.hash = target;
-    }
+    if (location.hash === target) onHashChange();
+    else location.hash = target;
   }
 
   function renderCurrentView() {
@@ -66,75 +54,66 @@
     });
   }
 
-  /* ---------------- アクション(データを変更する処理) ---------------- */
-
-  function submitBook(input) {
-    var result = Books.addBook(state.data, input);
-    if (result.status === 'error') {
-      U.showToast(result.message);
-      return;
+  /* ---------------- 目標達成の控えめな検知 ---------------- */
+  function checkGoalAchievement(beforeBooks, afterBooks) {
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth();
+    var beforeMonth = RRStats.countInMonth(beforeBooks, y, m);
+    var afterMonth = RRStats.countInMonth(afterBooks, y, m);
+    var beforeYear = RRStats.countInYear(beforeBooks, y);
+    var afterYear = RRStats.countInYear(afterBooks, y);
+    if (beforeMonth < state.data.settings.monthlyTarget && afterMonth >= state.data.settings.monthlyTarget) {
+      setTimeout(function () { U.showAchievement('今月の目標を達成したよ'); }, 500);
+    } else if (beforeYear < state.data.settings.annualTarget && afterYear >= state.data.settings.annualTarget) {
+      setTimeout(function () { U.showAchievement('今年の目標を達成したよ'); }, 500);
     }
-    if (result.status === 'duplicate') {
-      showDuplicateModal(input, result.existing);
-      return;
-    }
-    handleAddedResult(result, { isReread: false });
   }
 
-  function showDuplicateModal(input, existing) {
-    var html =
-      '<div class="rr-duplicate">' +
-        Navi.bubbleHtml('duplicate') +
-        '<p class="rr-duplicate__existing">「' + U.escapeHtml(existing.title) + '」(' + RRStats.formatDateJp(existing.readDate) + ')</p>' +
-        '<div class="rr-duplicate__actions">' +
-          '<button type="button" class="rr-btn rr-btn--ghost" data-action="dup-cancel">別の本を探す</button>' +
-          '<button type="button" class="rr-btn rr-btn--primary" data-action="dup-reread">もう一度読んだ</button>' +
-        '</div>' +
-      '</div>';
-    U.openModal(html, { dismissible: true });
-    document.querySelector('[data-action="dup-cancel"]').addEventListener('click', U.closeModal);
-    document.querySelector('[data-action="dup-reread"]').addEventListener('click', function () {
-      U.closeModal();
-      var rereadInput = Object.assign({}, input, { forceAsReread: true });
-      var result2 = Books.addBook(state.data, rereadInput);
-      if (result2.status === 'added') handleAddedResult(result2, { isReread: true });
+  /* ---------------- アクション ---------------- */
+
+  function registerBook(input) {
+    var beforeBooks = state.data.books.slice();
+    var book = Books.addBook(state.data, input);
+    afterRegister(beforeBooks, book);
+  }
+
+  function registerBookWithPhoto(input) {
+    var beforeBooks = state.data.books.slice();
+    var imageId = Storage.generateId(input.isbn || 'photo');
+    ImageStore.saveImage(imageId, input._previewDataUrl).then(function () {
+      var bookInput = Object.assign({}, input, { coverSource: 'user', coverImageId: imageId });
+      delete bookInput._previewDataUrl;
+      var book = Books.addBook(state.data, bookInput);
+      afterRegister(beforeBooks, book);
+    }).catch(function (err) {
+      U.showToast('画像の保存に失敗したよ: ' + (err && err.message ? err.message : ''));
     });
   }
 
-  function handleAddedResult(result, opts) {
-    var sceneKey = opts.isReread ? 'reread' : 'register';
-    U.showToast(Navi.SCENES[sceneKey].line.replace(/\n/g, ' '), { naviHtml: Navi.bubbleHtml(sceneKey) });
-    navigate('home');
+  function afterRegister(beforeBooks, book) {
+    U.showToast('📚 「' + book.title + '」を本棚に追加したよ');
+    Views.shelf.setHighlight(book.id);
+    navigate('shelf');
+    checkGoalAchievement(beforeBooks, state.data.books);
+  }
 
-    var items = [];
-    (result.newlyEarnedIds || []).forEach(function (id) {
-      var def = Badges.byId(id);
-      if (!def) return;
-      items.push({
-        naviScene: 'badge',
-        title: '🎉 ' + def.count + '冊達成!',
-        subtitle: def.name + ' GET!',
-        iconHtml: '<img src="' + Badges.badgeIconUrl(def.icon) + '" alt="" style="width:96px;height:96px;object-fit:contain" onerror="this.style.display=\'none\'">'
-      });
-    });
-    if (result.goal && result.goal.annualJustReached) {
-      items.push({ naviScene: 'goalAnnual', title: '🎉 年間目標クリア!', subtitle: '今年の目標を達成しました' });
-    }
-    if (result.goal && result.goal.monthlyJustReached) {
-      items.push({ naviScene: 'goalMonthly', title: '🎉 今月の目標クリア!' });
-    }
-    if (items.length > 0) {
-      setTimeout(function () {
-        U.showCelebrationQueue(items, function () { renderCurrentView(); });
-      }, 450);
-    }
+  function toggleFavoriteAction(id) {
+    Books.toggleFavorite(state.data, id);
+  }
+
+  function updateBookAction(id, changes) {
+    Books.updateBook(state.data, id, changes);
+    renderCurrentView();
   }
 
   function deleteBookAction(id) {
+    var book = state.data.books.find(function (b) { return b.id === id; });
     Books.deleteBook(state.data, id);
-    U.closeModal();
+    if (book && book.coverSource === 'user' && book.coverImageId) {
+      ImageStore.deleteImage(book.coverImageId);
+    }
     renderCurrentView();
-    U.showToast('記録を削除したよ');
+    U.showToast('本棚から削除したよ');
   }
 
   function saveSettingsAction(settings) {
@@ -143,17 +122,24 @@
     Storage.save(state.data);
   }
 
-  function exportDataAction() {
-    Backup.exportData(state.data);
-    U.showToast('バックアップを保存したよ');
+  function exportDataAction(includeImages) {
+    Backup.exportData(state.data, includeImages).then(function () {
+      U.showToast('バックアップを保存したよ');
+    }).catch(function (err) {
+      U.showToast('バックアップに失敗したよ: ' + (err && err.message ? err.message : ''));
+    });
   }
 
   function importDataAction(file) {
-    Backup.importData(file).then(function (newData) {
-      state.data = newData;
-      Books.recomputeDerivedState(state.data);
+    Backup.importData(file).then(function (result) {
+      state.data = result.data;
       Storage.save(state.data);
-      navigate('home');
+      var restoreImages = result.images
+        ? Promise.all(Object.keys(result.images).map(function (id) { return ImageStore.saveImage(id, result.images[id]); }))
+        : Promise.resolve();
+      return restoreImages;
+    }).then(function () {
+      navigate('shelf');
       renderCurrentView();
       U.showToast('データを復元したよ');
     }).catch(function (err) {
@@ -165,7 +151,10 @@
     navigate: navigate,
     rerenderCurrentView: renderCurrentView,
     actions: {
-      submitBook: submitBook,
+      registerBook: registerBook,
+      registerBookWithPhoto: registerBookWithPhoto,
+      toggleFavorite: toggleFavoriteAction,
+      updateBook: updateBookAction,
       deleteBook: deleteBookAction,
       saveSettings: saveSettingsAction,
       exportData: exportDataAction,
@@ -176,9 +165,7 @@
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js').catch(function () {
-          // Service Worker非対応/失敗でも通常のWebアプリとして利用を継続する
-        });
+        navigator.serviceWorker.register('./sw.js').catch(function () { /* 通常利用は継続可能 */ });
       });
     }
   }
@@ -186,16 +173,13 @@
   function init() {
     Storage = global.RR.Storage;
     Books = global.RR.Books;
-    Badges = global.RR.Badges;
-    Navi = global.RR.Navi;
     Backup = global.RR.Backup;
+    ImageStore = global.RR.ImageStore;
     U = global.RR.UICommon;
     Views = global.RR.Views;
     RRStats = global.RR.Stats;
 
     state.data = Storage.load();
-    Books.recomputeDerivedState(state.data); // 復元直後のバッジ/連続記録のズレを補正
-    Storage.save(state.data);
 
     bindNav();
     window.addEventListener('hashchange', onHashChange);
