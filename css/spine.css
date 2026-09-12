@@ -1,24 +1,27 @@
-/* 背表紙表示：タイトルを日本語の縦書きで上から下へ */
+/* 背表紙表示：日本語タイトルを本物の縦書きにする */
 .rr-shelf-grid--spine .rr-spine-title {
   writing-mode: vertical-rl !important;
-  text-orientation: mixed !important;
+  -webkit-writing-mode: vertical-rl !important;
+  text-orientation: upright !important;
+  -webkit-text-orientation: upright !important;
   white-space: normal !important;
-  word-break: normal !important;
+  word-break: break-all !important;
   overflow: hidden !important;
-  display: block !important;
-  width: 1.6em !important;
-  max-width: 1.6em !important;
+  display: inline-block !important;
+  width: auto !important;
+  max-width: none !important;
   height: 145px !important;
   max-height: 145px !important;
   margin: 0 auto !important;
+  padding: 0 !important;
   font-size: .82rem !important;
   font-weight: 800 !important;
   line-height: 1.35 !important;
   letter-spacing: .04em !important;
   text-align: start !important;
+  flex: 0 0 145px !important;
   -webkit-line-clamp: unset !important;
   -webkit-box-orient: unset !important;
-  flex: 0 0 145px !important;
 }
 
 .rr-shelf-grid--spine .rr-spine-book {
