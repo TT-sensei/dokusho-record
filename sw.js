@@ -4,7 +4,7 @@
  * 本棚・登録済みデータ・設定などを利用できるようにする。
  * ============================================================ */
 
-var CACHE_NAME = 'dokusho-record-cache-v7';
+var CACHE_NAME = 'dokusho-record-cache-v8';
 
 var APP_SHELL = [
   './',
