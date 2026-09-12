@@ -2,13 +2,6 @@
  * ui-common.js
  * モーダル、トースト、確認ダイアログ、表紙画像の描画など、
  * 複数の画面で共通して使うUI部品をまとめる。
- *
- * 表紙画像は2種類の由来を持つため描画方法が異なる:
- *   - coverSource: 'api'  → coverUrl をそのまま<img>で表示(失敗時は
- *                            プレースホルダーに切り替え、「表紙を撮る」へ誘導)
- *   - coverSource: 'user' → IndexedDBから非同期取得するため、
- *                            いったんプレースホルダーを描画してから
- *                            hydrateCovers() で差し替える
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -19,7 +12,6 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  /* ---------------- トースト ---------------- */
   var toastTimer = null;
   function showToast(message) {
     var root = el('toast-root');
@@ -34,7 +26,6 @@
     }, 2600);
   }
 
-  /* ---------------- モーダル ---------------- */
   function openModal(innerHtml, opts) {
     opts = opts || {};
     var root = el('modal-root');
@@ -78,7 +69,6 @@
     });
   }
 
-  /** 控えめな達成表示(過度な演出は入れない) */
   function showAchievement(message) {
     var root = el('toast-root');
     if (!root) return;
@@ -94,16 +84,36 @@
 
   /* ---------------- 表紙画像 ---------------- */
 
-  /** 一覧・シェルフ用の表紙HTML(未取得の由来ならプレースホルダー) */
+  // 同じ本は同じ色になるよう、タイトル/IDから色を決める。
+  // 再描画のたびに色が変わって本棚がちらつくのを防ぐ。
+  var FALLBACK_COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'teal'];
+  function fallbackColor(book) {
+    var source = String((book && (book.id || book.title)) || 'book');
+    var hash = 0;
+    for (var i = 0; i < source.length; i++) hash = ((hash << 5) - hash) + source.charCodeAt(i) | 0;
+    return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
+  }
+
+  function fallbackCoverHtml(book, sizeClass) {
+    var title = escapeHtml(book && book.title ? book.title : 'タイトルなし');
+    return '<div class="rr-cover rr-cover--fallback rr-cover--fallback-' + fallbackColor(book) + ' ' + sizeClass + '">' +
+      '<span class="rr-cover__fallback-title">' + title + '</span>' +
+    '</div>';
+  }
+
+  /** 一覧・シェルフ用の表紙HTML。画像がない本はタイトルカードで表示 */
   function coverHtml(book, opts) {
     opts = opts || {};
     var sizeClass = opts.sizeClass || '';
     var favMark = book.isFavorite ? '<span class="rr-cover__fav" aria-hidden="true">★</span>' : '';
+    var fallback = fallbackCoverHtml(book, sizeClass).replace('<div class="rr-cover ', '<div class="rr-cover ' + '');
+
     if (book.coverSource === 'api' && book.coverUrl) {
       return (
-        '<div class="rr-cover ' + sizeClass + '">' + favMark +
+        '<div class="rr-cover ' + sizeClass + ' rr-cover--has-image">' + favMark +
           '<img src="' + escapeHtml(book.coverUrl) + '" alt="" loading="lazy" ' +
-            'onerror="this.parentElement.classList.add(\'rr-cover--placeholder\');this.remove();">' +
+            'onerror="this.parentElement.classList.add(\'rr-cover--fallback\',\'rr-cover--fallback-' + fallbackColor(book) + '\');this.remove();">' +
+          '<span class="rr-cover__fallback-title">' + escapeHtml(book.title || 'タイトルなし') + '</span>' +
         '</div>'
       );
     }
@@ -114,17 +124,16 @@
         '</div>'
       );
     }
-    return '<div class="rr-cover ' + sizeClass + ' rr-cover--placeholder">' + favMark + '<span aria-hidden="true">📕</span></div>';
+    return fallback;
   }
 
-  /** container内の「IndexedDB由来でまだ読み込んでいない表紙」を非同期で差し替える */
   function hydrateCovers(container) {
     if (!container) return;
     var pending = container.querySelectorAll('[data-cover-source="user"]');
     pending.forEach(function (elm) {
       var imageId = elm.getAttribute('data-cover-image-id');
       global.RR.ImageStore.getImage(imageId).then(function (dataUrl) {
-        if (!elm.isConnected) return; // 描画し直されて既にDOMから消えている場合は何もしない
+        if (!elm.isConnected) return;
         if (dataUrl) {
           var img = document.createElement('img');
           img.src = dataUrl;
@@ -134,9 +143,9 @@
           elm.insertBefore(img, elm.firstChild);
         } else {
           elm.classList.remove('rr-cover--pending');
-          elm.classList.add('rr-cover--placeholder');
+          elm.classList.add('rr-cover--fallback', 'rr-cover--fallback-' + fallbackColor({ id: imageId, title: elm.getAttribute('data-cover-title') || 'タイトルなし' }));
           var spinner = elm.querySelector('.rr-cover__spinner');
-          if (spinner) spinner.outerHTML = '<span aria-hidden="true">📕</span>';
+          if (spinner) spinner.outerHTML = '<span class="rr-cover__fallback-title">タイトルなし</span>';
         }
       });
     });
