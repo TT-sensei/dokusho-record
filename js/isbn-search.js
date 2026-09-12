@@ -1,7 +1,7 @@
 /* ============================================================
  * isbn-search.js
- * 日本の学校利用を前提に、openBDを正として書誌情報を取得する。
- * 表紙はopenBDを最優先。openBDに表紙が無い場合だけGoogle Booksを使用。
+ * Google Books / openBD / NDLサーチからISBN書誌情報を取得する。
+ * 無料・APIキー不要の3ソースを並行取得し、欠けを補完する。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -46,11 +46,8 @@
     return url ? String(url).replace(/^http:\/\//, 'https://') : '';
   }
 
-  // openBDの書影はsummary.coverを第一候補にし、ONIXの
-  // CollateralDetail.SupportingResource.ResourceVersion.ResourceLinkも確認する。
   function findOpenBDCover(book) {
     if (!book) return '';
-
     var summary = book.summary || {};
     if (summary.cover) return toHttps(summary.cover);
 
@@ -68,12 +65,8 @@
       }
     } catch (e) {}
 
-    // openBDの書影URL規則による最後のopenBD内フォールバック。
     var isbn = summary.isbn || '';
-    if (/^\d{13}$/.test(isbn)) {
-      return 'https://cover.openbd.jp/' + isbn + '.jpg';
-    }
-
+    if (/^\d{13}$/.test(isbn)) return 'https://cover.openbd.jp/' + isbn + '.jpg';
     return '';
   }
 
@@ -85,8 +78,12 @@
       pageCandidates: [],
       priceCandidates: [],
       isbn: isbn13,
-      source: ''
+      source: []
     };
+  }
+
+  function addSource(result, name) {
+    if (result.source.indexOf(name) === -1) result.source.push(name);
   }
 
   function fromOpenBD(isbn13, result) {
@@ -98,8 +95,6 @@
 
       var summary = data[0].summary || {};
       var onix = data[0].onix || {};
-
-      // 書誌情報はopenBDを正とする。Google Booksで上書きしない。
       if (summary.title) result.title = summary.title;
       if (summary.author) result.author = cleanAuthorName(summary.author);
       result.coverUrl = findOpenBDCover(data[0]);
@@ -125,16 +120,12 @@
         }
       } catch (e) {}
 
-      result.source = 'openBD';
+      addSource(result, 'openBD');
       return true;
-    }).catch(function () {
-      return false;
-    });
+    }).catch(function () { return false; });
   }
 
-  // Google BooksはopenBDに本が無い場合の完全フォールバック、
-  // またはopenBDに表紙が無い場合の表紙フォールバックとして使う。
-  function fromGoogleBooks(isbn13, result, coverOnly) {
+  function fromGoogleBooks(isbn13, result) {
     var url = 'https://www.googleapis.com/books/v1/volumes?q=isbn:' + encodeURIComponent(isbn13);
     return fetchWithTimeout(url).then(function (r) {
       return r.ok ? r.json() : null;
@@ -145,44 +136,91 @@
       var info = item.volumeInfo || {};
       var googleCover = info.imageLinks && (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail);
 
-      if (coverOnly) {
-        if (!result.coverUrl && googleCover) {
-          result.coverUrl = toHttps(googleCover);
-          result.source = 'openBD+googleBooks-cover';
-          return true;
-        }
-        return false;
-      }
-
-      // openBDに本が無い場合だけ、Google Booksを書誌情報として採用する。
-      if (info.title) result.title = info.title;
-      if (Array.isArray(info.authors)) result.author = cleanAuthorName(info.authors.join(' '));
-      if (googleCover) result.coverUrl = toHttps(googleCover);
+      if (!result.title && info.title) result.title = info.title;
+      if (!result.author && Array.isArray(info.authors)) result.author = cleanAuthorName(info.authors.join(' '));
+      if (!result.coverUrl && googleCover) result.coverUrl = toHttps(googleCover);
       if (info.pageCount) result.pageCandidates.push(parseInt(info.pageCount, 10));
       if (item.saleInfo && item.saleInfo.listPrice) {
         result.priceCandidates.push(extractCleanNum(item.saleInfo.listPrice.amount));
       }
-      result.source = 'googleBooks';
+
+      addSource(result, 'googleBooks');
       return true;
-    }).catch(function () {
-      return false;
-    });
+    }).catch(function () { return false; });
+  }
+
+  function getXmlText(node, localName) {
+    if (!node) return '';
+    var nodes = node.getElementsByTagNameNS
+      ? node.getElementsByTagNameNS('*', localName)
+      : node.getElementsByTagName(localName);
+    return nodes && nodes.length ? String(nodes[0].textContent || '').trim() : '';
+  }
+
+  function getAllXmlText(node, localName) {
+    var values = [];
+    if (!node) return values;
+    var nodes = node.getElementsByTagNameNS
+      ? node.getElementsByTagNameNS('*', localName)
+      : node.getElementsByTagName(localName);
+    for (var i = 0; i < (nodes ? nodes.length : 0); i++) {
+      var value = String(nodes[i].textContent || '').trim();
+      if (value) values.push(value);
+    }
+    return values;
+  }
+
+  // NDLサーチ OpenSearch はRSS/XMLを返す。ISBNは any 検索で照合する。
+  function fromNDL(isbn13, result) {
+    var url = 'https://ndlsearch.ndl.go.jp/api/opensearch?cnt=5&mediatype=books&any=' + encodeURIComponent(isbn13);
+    return fetchWithTimeout(url, { headers: { 'Accept': 'application/rss+xml, application/xml, text/xml' } }).then(function (r) {
+      return r.ok ? r.text() : '';
+    }).then(function (xmlText) {
+      if (!xmlText || typeof DOMParser === 'undefined') return false;
+      var xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+      if (!xml || xml.getElementsByTagName('parsererror').length) return false;
+
+      var items = xml.getElementsByTagName('item');
+      if (!items.length) return false;
+      var item = items[0];
+      var title = getXmlText(item, 'title');
+      var creators = getAllXmlText(item, 'creator');
+      var descriptions = getAllXmlText(item, 'description');
+      var extents = getAllXmlText(item, 'extent');
+      var identifiers = getAllXmlText(item, 'identifier');
+
+      if (!result.title && title) result.title = title;
+      if (!result.author && creators.length) result.author = cleanAuthorName(creators.join(' '));
+
+      extents.concat(descriptions).forEach(function (value) {
+        var page = value.match(/(?:全|[Pp\.\s]*)?(\d{2,5})\s*(?:p|頁|ページ)/);
+        if (page) result.pageCandidates.push(parseInt(page[1], 10));
+      });
+
+      identifiers.forEach(function (value) {
+        var price = value.match(/(?:[￥¥]|\bJPY\b)\s*([0-9,]+)/i);
+        if (price) result.priceCandidates.push(extractCleanNum(price[1]));
+      });
+
+      // NDLの書影APIはISBNから直接参照できるため、他ソースの表紙が無い場合だけ使う。
+      if (!result.coverUrl && identifiers.some(function (value) { return value.indexOf(isbn13) !== -1; })) {
+        result.coverUrl = 'https://ndlsearch.ndl.go.jp/thumbnail/' + isbn13 + '.jpg';
+      }
+
+      addSource(result, 'NDL');
+      return true;
+    }).catch(function () { return false; });
   }
 
   function lookupIsbn(isbn13) {
     var result = createResult(isbn13);
 
-    return fromOpenBD(isbn13, result).then(function (openBdFound) {
-      if (!openBdFound) {
-        return fromGoogleBooks(isbn13, result, false);
-      }
-
-      if (!result.coverUrl) {
-        return fromGoogleBooks(isbn13, result, true);
-      }
-
-      return false;
-    }).then(function () {
+    // 3ソースを並行取得。どれか1つが失敗しても残りで続行する。
+    return Promise.allSettled([
+      fromOpenBD(isbn13, result),
+      fromGoogleBooks(isbn13, result),
+      fromNDL(isbn13, result)
+    ]).then(function () {
       var pages = result.pageCandidates
         .filter(function (n) { return !isNaN(n) && n > 0; })
         .sort(function (a, b) { return b - a; });
@@ -197,7 +235,7 @@
         pageCount: pages.length > 0 ? pages[0] : 0,
         price: prices.length > 0 ? prices[0] : 0,
         isbn: isbn13,
-        source: result.source || ''
+        source: result.source.join('+')
       };
     });
   }
