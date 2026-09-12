@@ -1,15 +1,17 @@
 # このフォルダについて
 
-このアプリのバッジ画像は、[edu-assets](https://github.com/TT-sensei/edu-assets) の
+このアプリのナビキャラ画像は、[navi-character-](https://github.com/TT-sensei/navi-character-) の
 `AI-GUIDE.md` の方針に従い、**このリポジトリへ複製せず**、公開済みのURLを
 直接参照しています。
 
 ```
-https://tt-sensei.github.io/edu-assets/assets/web/badges/common/{icon}/badge.webp
+https://tt-sensei.github.io/navi-character-/assets/web/characters/{id}/fullbody/{pose}.webp
 ```
 
-参照している icon 名は `js/badges.js` の `DEFINITIONS` にまとめてあります。
+どの場面でどのキャラクターを使うかは `js/navi.js` の `SCENES` にまとめてあります
+(役割はnavi-character-のAI-GUIDEにある役割表に準拠: そら=登録、なみ=重複・再読、
+つき=目標達成、さく=バッジ獲得、かい=ヒント・見つからない場合)。
 
-edu-assetsの画像が読み込めない場合(オフライン・障害時など)は、
-`js/views/badges.js` のonerrorハンドラで🏅の絵文字に自動的に切り替わり、
-アプリの利用自体は妨げられません。
+画像が読み込めない場合(オフライン・障害時など)は、`js/navi.js` の
+onerrorハンドラで吹き出しの画像部分だけが自動的に非表示になり、
+セリフとアプリ本体の動作には影響しません。
