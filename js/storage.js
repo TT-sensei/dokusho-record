@@ -8,6 +8,8 @@
 
   var STORAGE_KEY = 'magazine-rack:v2';
   var CURRENT_VERSION = '2.0';
+  // 壊れたデータを初期データで上書きしないための保護フラグ。
+  var loadError = false;
 
   function createDefaultData() {
     return {
@@ -71,26 +73,37 @@
 
   function load() {
     var raw;
+    loadError = false;
     try {
       var text = global.localStorage.getItem(STORAGE_KEY);
       if (!text) return createDefaultData();
       raw = JSON.parse(text);
+      if (!raw || typeof raw !== 'object' || !Array.isArray(raw.books)) {
+        throw new Error('本棚データの形式が正しくありません');
+      }
     } catch (err) {
-      console.warn('[magazine-rack] データの読み込みに失敗したため初期化します', err);
+      loadError = true;
+      console.warn('[magazine-rack] データの読み込みに失敗しました。既存データの上書きを保留します', err);
       return createDefaultData();
     }
     return migrate(raw);
   }
 
-  function save(data) {
+  function save(data, options) {
+    // 読み込みに失敗した既存データを、空の初期データで上書きしない。
+    // 明示的なバックアップ復元だけは replaceCorrupt で置き換えを許可する。
+    if (loadError && !(options && options.replaceCorrupt)) return false;
     try {
       global.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      loadError = false;
       return true;
     } catch (err) {
       console.warn('[magazine-rack] データの保存に失敗しました', err);
       return false;
     }
   }
+
+  function hasLoadError() { return loadError; }
 
   global.RR = global.RR || {};
   global.RR.Storage = {
@@ -101,6 +114,7 @@
     normalizeBookRecord: normalizeBookRecord,
     generateId: generateId,
     load: load,
-    save: save
+    save: save,
+    hasLoadError: hasLoadError
   };
 })(window);
