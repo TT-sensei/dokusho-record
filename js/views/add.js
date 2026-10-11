@@ -123,6 +123,7 @@
       '<div class="rr-card">' +
         (vs.scanStatus === 'scanning'
           ? '<div class="rr-scan-frame"><div id="rr-scanner-target" class="rr-scanner-target"></div><div class="rr-scan-guide"></div></div>' +
+            '<p id="rr-scan-status" class="rr-scan-status" aria-live="polite">バーコードを枠に合わせてください。</p>' +
             '<button type="button" class="rr-btn rr-btn--ghost" data-action="scan-stop">スキャンをやめる</button>'
           : renderScannedCode() +
             '<button type="button" class="rr-btn rr-btn--cta" data-action="scan-start">📷 カメラでバーコードをよむ</button>'
@@ -268,6 +269,9 @@
             ? 'カメラを起動できませんでした。カメラの使用を許可しているか確認してね。'
             : 'バーコード読み取り機能を読み込めませんでした。数字を入力して探してみてね。';
           rerenderSelf();
+        }, function (message) {
+          var status = document.getElementById('rr-scan-status');
+          if (status) status.textContent = message;
         });
       }
     });
@@ -294,6 +298,9 @@
           vs.scanStatus = 'error';
           vs.scanErrorMessage = 'カメラを起動できませんでした。カメラの使用を許可しているか確認してね。';
           rerenderSelf();
+        }, function (message) {
+          var status = document.getElementById('rr-scan-status');
+          if (status) status.textContent = message;
         });
       }
     });
