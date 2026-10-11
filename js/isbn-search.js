@@ -29,12 +29,6 @@
     return isNaN(number) ? 0 : number;
   }
 
-  function parsePrice(value) {
-    if (value === null || value === undefined || value === '') return 0;
-    var normalized = toHalfWidthDigits(value).replace(/,/g, '').replace(/[^0-9.\-]/g, '');
-    var amount = Number(normalized);
-    return Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 0;
-  }
 
   function cleanAuthorName(value) {
     if (!value) return '';
@@ -54,7 +48,7 @@
   }
 
   function emptyRecord(name) {
-    return { name: name, found: false, title: '', author: '', coverUrl: '', pageCount: 0, price: 0 };
+    return { name: name, found: false, title: '', author: '', coverUrl: '', pageCount: 0 };
   }
 
   function getXmlText(node, localName) {
@@ -184,20 +178,7 @@
           }
         } catch (e) {}
 
-        try {
-          var supplies = onix.ProductSupply && onix.ProductSupply.SupplyDetail;
-          var prices = supplies && supplies.Price;
-          if (Array.isArray(prices)) {
-            for (var p = 0; p < prices.length; p++) {
-              var amount = prices[p] && prices[p].PriceAmount;
-              var currency = prices[p] && prices[p].CurrencyCode;
-              var price = parsePrice(amount);
-              if (price > 0 && (!currency || currency === 'JPY')) { result.price = price; break; }
-            }
-          }
-        } catch (e) {}
-
-        result.found = Boolean(result.title || result.author || result.coverUrl || result.pageCount || result.price);
+        result.found = Boolean(result.title || result.author || result.coverUrl || result.pageCount);
         return result;
       })
       .catch(function () { return result; });
@@ -218,11 +199,7 @@
         result.coverUrl = toHttps(links.thumbnail || links.smallThumbnail || '');
         result.pageCount = Number(info.pageCount) > 0 ? Math.round(Number(info.pageCount)) : 0;
 
-        var sale = item.saleInfo && item.saleInfo.listPrice;
-        if (sale && (!sale.currencyCode || sale.currencyCode === 'JPY')) {
-          result.price = parsePrice(sale.amount);
-        }
-        result.found = Boolean(result.title || result.author || result.coverUrl || result.pageCount || result.price);
+        result.found = Boolean(result.title || result.author || result.coverUrl || result.pageCount);
         return result;
       })
       .catch(function () { return result; });
@@ -255,7 +232,6 @@
         author: firstValue(priority, 'author'),
         coverUrl: firstValue(priority, 'coverUrl'),
         pageCount: firstValue(priority, 'pageCount') || 0,
-        price: firstValue(priority, 'price') || 0,
         isbn: isbn13,
         source: sources.join('+')
       };
