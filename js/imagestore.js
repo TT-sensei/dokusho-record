@@ -108,6 +108,30 @@
     });
   }
 
+  // 復元時は1つのIndexedDBトランザクションで画像全体を置き換える。
+  // 途中で失敗した場合、部分的な置き換えはコミットされない。
+  function replaceAllImages(images) {
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx;
+        try {
+          tx = db.transaction(STORE_NAME, 'readwrite');
+          var store = tx.objectStore(STORE_NAME);
+          store.clear();
+          Object.keys(images || {}).forEach(function (id) {
+            store.put({ id: id, dataUrl: images[id] });
+          });
+        } catch (err) {
+          reject(err || new Error('表紙画像を復元できませんでした'));
+          return;
+        }
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { reject(tx.error || new Error('表紙画像の復元に失敗しました')); };
+        tx.onabort = function () { reject(tx.error || new Error('表紙画像の復元が中断されました')); };
+      });
+    });
+  }
+
   function getImage(id) {
     if (!id) return Promise.resolve(null);
     return openDB().then(function (db) {
@@ -165,6 +189,7 @@
     fileToCompressedDataUrl: fileToCompressedDataUrl,
     saveImage: saveImage,
     saveImageFromDataUrl: saveImageFromDataUrl,
+    replaceAllImages: replaceAllImages,
     getImage: getImage,
     deleteImage: deleteImage,
     getAllImages: getAllImages

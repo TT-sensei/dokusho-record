@@ -8,6 +8,7 @@
 
   var STORAGE_KEY = 'magazine-rack:v2';
   var CURRENT_VERSION = '2.0';
+  var loadError = false;
 
   function createDefaultData() {
     return {
@@ -71,20 +72,39 @@
 
   function load() {
     var raw;
+    loadError = false;
     try {
       var text = global.localStorage.getItem(STORAGE_KEY);
-      if (!text) return createDefaultData();
+      if (text === null) return createDefaultData();
       raw = JSON.parse(text);
+      if (!raw || typeof raw !== 'object' || !Array.isArray(raw.books)) {
+        throw new Error('保存データの形式が正しくありません');
+      }
+      if (raw.books.some(function (book) {
+        return !book || typeof book !== 'object' || Array.isArray(book) ||
+          typeof book.title !== 'string' || !book.title.trim();
+      })) {
+        throw new Error('本の記録に不備があるため、元データを保護します');
+      }
     } catch (err) {
-      console.warn('[magazine-rack] データの読み込みに失敗したため初期化します', err);
+      loadError = true;
+      console.error('[magazine-rack] 保存データを読み込めません。元データを保護します。', err);
       return createDefaultData();
     }
     return migrate(raw);
   }
 
-  function save(data) {
+  function hasLoadError() { return loadError; }
+
+  function save(data, options) {
+    options = options || {};
+    if (loadError && options.force !== true) {
+      console.warn('[magazine-rack] 読み込みに失敗した元データを保護するため保存を停止しました');
+      return false;
+    }
     try {
       global.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      loadError = false;
       return true;
     } catch (err) {
       console.warn('[magazine-rack] データの保存に失敗しました', err);
@@ -101,6 +121,7 @@
     normalizeBookRecord: normalizeBookRecord,
     generateId: generateId,
     load: load,
+    hasLoadError: hasLoadError,
     save: save
   };
 })(window);
