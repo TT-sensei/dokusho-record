@@ -397,3 +397,31 @@ button, input, textarea { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .rr-book-card:active { transform: none; }
 }
+
+
+/* ---------------- タブレット：本の詳細を広く使う ---------------- */
+@media (min-width: 700px) {
+  .rr-modal--wide { max-width: 760px; }
+  .rr-detail {
+    display: grid; grid-template-columns: minmax(170px, 220px) minmax(0,1fr);
+    column-gap: 28px; row-gap: 5px; align-items: start;
+  }
+  .rr-detail__cover { grid-column: 1; grid-row: 1 / span 4; min-width: 0; }
+  .rr-detail__cover .rr-cover--lg { width: 100%; max-width: 210px; margin: 0 auto; }
+  .rr-detail__title { grid-column: 2; text-align: left; font-size: 1.35rem; line-height: 1.45; margin: 4px 0 8px; overflow-wrap: anywhere; }
+  .rr-detail__row { grid-column: 2; text-align: left; font-size: .9rem; }
+  .rr-detail__row + .rr-detail__row { margin-top: 3px; }
+  .rr-mood-section, .rr-detail__memo, .rr-detail__actions { grid-column: 1 / -1; }
+  .rr-mood-section { margin-top: 18px !important; }
+  .rr-detail__actions { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .rr-detail__actions .rr-btn { margin-top: 0; }
+  .rr-detail__actions [data-action="delete-book"] { grid-column: 1 / -1; }
+}
+@media (min-width: 700px) and (max-width: 899px) {
+  .rr-modal--wide { max-width: calc(100vw - 40px); }
+  .rr-detail { grid-template-columns: minmax(145px, 190px) minmax(0,1fr); column-gap: 20px; }
+  .rr-detail__actions { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 699px) {
+  .rr-detail__actions .rr-btn { min-height: 48px; }
+}
