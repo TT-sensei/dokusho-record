@@ -4,7 +4,7 @@
  * 本棚・登録済みデータ・設定などを利用できるようにする。
  * ============================================================ */
 
-var CACHE_NAME = 'dokusho-record-cache-v19';
+var CACHE_NAME = 'dokusho-record-cache-v20';
 
 var APP_SHELL = [
   './',
@@ -38,10 +38,11 @@ var APP_SHELL = [
 ];
 
 self.addEventListener('install', function (event) {
+  // 必要なファイルがそろわない更新は失敗扱いにし、旧バージョンを維持する。
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(function (cache) { return cache.addAll(APP_SHELL); })
-      .catch(function () {})
+    caches.open(CACHE_NAME).then(function (cache) {
+      return cache.addAll(APP_SHELL);
+    })
   );
   self.skipWaiting();
 });
@@ -50,12 +51,13 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(
-        keys.filter(function (k) { return k !== CACHE_NAME; })
-          .map(function (k) { return caches.delete(k); })
+        keys.filter(function (key) { return key !== CACHE_NAME; })
+          .map(function (key) { return caches.delete(key); })
       );
+    }).then(function () {
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', function (event) {
@@ -69,13 +71,24 @@ self.addEventListener('fetch', function (event) {
       return fetch(event.request).then(function (response) {
         if (response && response.ok) {
           var clone = response.clone();
-          caches.open(CACHE_NAME).then(function (cache) {
-            cache.put(event.request, clone);
-          });
+          event.waitUntil(
+            caches.open(CACHE_NAME).then(function (cache) {
+              return cache.put(event.request, clone);
+            }).catch(function () {})
+          );
         }
         return response;
       }).catch(function () {
-        return caches.match('./index.html');
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html').then(function (cachedIndex) {
+            return cachedIndex || new Response('オフラインです。接続後にもう一度お試しください。', {
+              status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+            });
+          });
+        }
+        return new Response('このファイルはオフラインで利用できません。接続後にもう一度お試しください。', {
+          status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
       });
     })
   );
