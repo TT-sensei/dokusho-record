@@ -51,7 +51,7 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(
-        keys.filter(function (key) { return key !== CACHE_NAME; })
+        keys.filter(function (key) { return key.indexOf('dokusho-record-cache-') === 0 && key !== CACHE_NAME; })
           .map(function (key) { return caches.delete(key); })
       );
     }).then(function () {
