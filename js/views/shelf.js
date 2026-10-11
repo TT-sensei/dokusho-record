@@ -76,7 +76,7 @@
 
   function renderGrid(books) {
     if (viewMode === 'spine') {
-      return '<div class="rr-shelf-grid rr-shelf-grid--spine" style="grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:18px 10px;align-items:end;">' + books.map(renderSpineCard).join('') + '</div>';
+      return '<div class="rr-shelf-grid rr-shelf-grid--spine">' + books.map(renderSpineCard).join('') + '</div>';
     }
     return '<div class="rr-shelf-grid">' + books.map(renderCard).join('') + '</div>';
   }
@@ -92,7 +92,7 @@
     var mood = U.moodLabel(book.mood);
     var highlight = (book.id === pendingHighlightId) ? ' rr-spine-book--new' : '';
     var fav = book.isFavorite ? '<span class="rr-spine-favorite" aria-hidden="true">★</span>' : '';
-    var style = 'position:relative;display:flex;flex-direction:column;justify-content:space-between;align-items:center;width:100%;min-height:184px;padding:11px 7px 8px;border:0;border-radius:5px 5px 2px 2px;box-shadow:0 4px 9px rgba(0,0,0,.16);background:' + color.bg + ';color:' + color.ink + ';font:inherit;cursor:pointer;overflow:hidden;';
+    var style = '--spine-bg:' + color.bg + ';--spine-ink:' + color.ink + ';';
     return '<button type="button" class="rr-spine-book' + highlight + '" data-id="' + book.id + '" title="' + U.escapeHtml((book.title || '') + (mood ? ' / ' + mood : '')) + '" style="' + style + '">' +
       fav + '<span class="rr-spine-title">' + U.escapeHtml(book.title || 'タイトルなし') + '</span>' +
       '<span class="rr-spine-date">' + U.escapeHtml((book.readDate || '').slice(5).replace('-', '/')) + '</span>' +
