@@ -89,7 +89,7 @@
   function handleDetected(data) {
     if (!running || processing) return;
     var code = data && data.codeResult && data.codeResult.code;
-    if (!code || !/^\\d{13}$/.test(code)) return;
+    if (!code || !/^\d{13}$/.test(code)) return;
 
     // 1フレームだけの誤認識で確定しない。同じ13桁が短時間に
     // 複数回検出され、ISBNの接頭辞とチェックデジットも通った場合だけ成功扱いにする。
