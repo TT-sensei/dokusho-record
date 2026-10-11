@@ -14,6 +14,13 @@
    * @param {boolean} includeImages trueならIndexedDBの画像もdataURLで同梱する
    */
   function exportData(data, includeImages) {
+    // 画像の読み込み中に本棚が変更されても、書誌情報は開始時点の状態を保存する。
+    var snapshot;
+    try {
+      snapshot = JSON.parse(JSON.stringify(data));
+    } catch (err) {
+      return Promise.reject(new Error('本棚データをバックアップ用に準備できませんでした'));
+    }
     var proceed = includeImages
       ? global.RR.ImageStore.getAllImages()
       : Promise.resolve(null);
@@ -21,7 +28,7 @@
     return proceed.then(function (images) {
       var payload = {
         exportedAt: new Date().toISOString(),
-        data: data,
+        data: snapshot,
         images: images || undefined
       };
       var now = new Date();

@@ -134,9 +134,15 @@
 
   function getAllImages() {
     return openDB().then(function (db) {
-      return new Promise(function (resolve) {
+      return new Promise(function (resolve, reject) {
         var result = {};
-        var tx = db.transaction(STORE_NAME, 'readonly');
+        var tx;
+        try {
+          tx = db.transaction(STORE_NAME, 'readonly');
+        } catch (err) {
+          reject(err || new Error('表紙画像を読み込めませんでした'));
+          return;
+        }
         var req = tx.objectStore(STORE_NAME).openCursor();
         req.onsuccess = function (ev) {
           var cursor = ev.target.result;
@@ -147,9 +153,11 @@
             resolve(result);
           }
         };
-        req.onerror = function () { resolve(result); };
+        req.onerror = function () { reject(req.error || new Error('表紙画像を読み込めませんでした')); };
+        tx.onerror = function () { reject(tx.error || new Error('表紙画像を読み込めませんでした')); };
+        tx.onabort = function () { reject(tx.error || new Error('表紙画像の読み込みが中断されました')); };
       });
-    }).catch(function () { return {}; });
+    });
   }
 
   global.RR = global.RR || {};
