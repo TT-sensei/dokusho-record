@@ -41,3 +41,37 @@
   top: 4px;
   font-size: .7rem;
 }
+
+
+/* 背表紙カードのレイアウトと本ごとの色 */
+.rr-shelf-grid--spine {
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  gap: 18px 10px;
+  align-items: end;
+}
+.rr-shelf-grid--spine .rr-spine-book {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 184px;
+  padding: 11px 7px 8px;
+  border: 0;
+  border-radius: 5px 5px 2px 2px;
+  box-shadow: 0 4px 9px rgba(0,0,0,.16);
+  background: var(--spine-bg);
+  color: var(--spine-ink);
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+.rr-shelf-grid--spine .rr-spine-book:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-shelf-grid--spine .rr-spine-book { transition: none; }
+}
