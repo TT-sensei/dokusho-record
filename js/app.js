@@ -128,10 +128,21 @@
   function exportDataAction(includeImages) { Backup.exportData(state.data, includeImages).then(function () { U.showToast('バックアップを保存したよ'); }).catch(function (err) { U.showToast('バックアップに失敗したよ: ' + (err && err.message ? err.message : '')); }); }
   function importDataAction(file) {
     Backup.importData(file).then(function (result) {
-      state.data = result.data; Storage.save(state.data);
-      var restoreImages = result.images ? Promise.all(Object.keys(result.images).map(function (id) { return ImageStore.saveImage(id, result.images[id]); })) : Promise.resolve();
-      return restoreImages;
-    }).then(function () { navigate('shelf'); renderCurrentView(); U.showToast('データを復元したよ'); }).catch(function (err) { U.showToast('復元に失敗したよ: ' + err.message); });
+      // 画像の復元が完了する前に本棚データを切り替えない。
+      var restoreImages = result.images
+        ? Promise.all(Object.keys(result.images).map(function (id) { return ImageStore.saveImage(id, result.images[id]); }))
+        : Promise.resolve();
+      return restoreImages.then(function () {
+        if (!Storage.save(result.data)) {
+          throw new Error('端末に保存できませんでした。空き容量を確認し、元のデータが残っているか確認してください');
+        }
+        state.data = result.data;
+      });
+    }).then(function () {
+      navigate('shelf'); renderCurrentView(); U.showToast('データを復元したよ');
+    }).catch(function (err) {
+      U.showToast('復元に失敗したよ: ' + (err && err.message ? err.message : 'ファイルを確認してね'));
+    });
   }
   var ctx = { navigate: navigate, rerenderCurrentView: renderCurrentView, actions: { registerBook: registerBook, registerBookWithPhoto: registerBookWithPhoto, toggleFavorite: toggleFavoriteAction, updateBook: updateBookAction, setMood: setMoodAction, deleteBook: deleteBookAction, saveSettings: saveSettingsAction, exportData: exportDataAction, importData: importDataAction } };
   function registerServiceWorker() { if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); }); }
