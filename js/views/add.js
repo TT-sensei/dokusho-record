@@ -372,6 +372,13 @@
       vs.form = defaultForm({ isbn: result.isbn });
       vs.lookupStatus = 'done';
       rerenderSelf();
+    }).catch(function () {
+      // 書誌検索に失敗しても、手入力で登録できる状態に戻す。
+      vs.result = { title: '', author: '', coverUrl: '', pageCount: 0, price: 0, isbn: isbn13 };
+      vs.form = defaultForm({ isbn: isbn13 });
+      vs.lookupStatus = 'done';
+      U.showToast('情報を取得できなかったよ。タイトルを入力して登録できるよ');
+      rerenderSelf();
     });
   }
 
@@ -401,6 +408,12 @@
         if (result.title) vs.form.title = result.title;
         if (result.author) vs.form.author = result.author;
         U.showToast(result.title ? '情報を入力したよ' : '情報が見つからなかったよ');
+        rerenderSelf();
+      }).catch(function () {
+        // 検索失敗時も写真と入力内容を保持し、登録操作を続けられるようにする。
+        vs.photoBusy = false;
+        vs.form.isbn = isbn13;
+        U.showToast('情報を取得できなかったよ。入力した内容で続けられるよ');
         rerenderSelf();
       });
     });
