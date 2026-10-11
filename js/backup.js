@@ -72,6 +72,22 @@
             reject(new Error('本棚データが見つかりません。正しいバックアップファイルを選んでください'));
             return;
           }
+          var seenIds = {};
+          for (var bi = 0; bi < rawData.books.length; bi++) {
+            var record = rawData.books[bi];
+            if (!record || typeof record !== 'object' || Array.isArray(record) ||
+                typeof record.title !== 'string' || !record.title.trim()) {
+              reject(new Error('本の情報に不備があります。元の本棚を守るため復元を中止しました'));
+              return;
+            }
+            if (typeof record.id === 'string' && record.id) {
+              if (seenIds[record.id]) {
+                reject(new Error('同じ本の識別情報が重複しています。バックアップを確認してください'));
+                return;
+              }
+              seenIds[record.id] = true;
+            }
+          }
           var images = null;
           if (parsed && typeof parsed === 'object' && parsed.images !== undefined) {
             if (!parsed.images || typeof parsed.images !== 'object' || Array.isArray(parsed.images)) {
