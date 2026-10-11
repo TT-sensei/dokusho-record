@@ -97,7 +97,7 @@
             images = parsed.images;
             var imageIds = Object.keys(images);
             for (var i = 0; i < imageIds.length; i++) {
-              if (typeof images[imageIds[i]] !== 'string' || images[imageIds[i]].indexOf('data:image/') !== 0) {
+              if (typeof images[imageIds[i]] !== 'string' || !/^data:image\/[a-z0-9.+-]+;base64,/i.test(images[imageIds[i]])) {
                 reject(new Error('表紙画像データの形式が正しくありません'));
                 return;
               }
