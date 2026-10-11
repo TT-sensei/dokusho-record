@@ -163,18 +163,27 @@
     }
     return true;
   }
-  function exportDataAction(includeImages) { Backup.exportData(state.data, includeImages).then(function () { U.showToast('バックアップを保存したよ'); }).catch(function (err) { U.showToast('バックアップに失敗したよ: ' + (err && err.message ? err.message : '')); }); }
+  function exportDataAction(includeImages) { if (Storage.hasLoadError && Storage.hasLoadError()) { U.showToast('保存データを読み込めないため、空のバックアップ作成を停止しました。正しいバックアップを復元してください'); return; } Backup.exportData(state.data, includeImages).then(function () { U.showToast('バックアップを保存したよ'); }).catch(function (err) { U.showToast('バックアップに失敗したよ: ' + (err && err.message ? err.message : '')); }); }
   function importDataAction(file) {
     Backup.importData(file).then(function (result) {
-      // 画像の復元が完了する前に本棚データを切り替えない。
-      var restoreImages = result.images
-        ? Promise.all(Object.keys(result.images).map(function (id) { return ImageStore.saveImage(id, result.images[id]); }))
-        : Promise.resolve();
-      return restoreImages.then(function () {
-        if (!Storage.save(result.data)) {
-          throw new Error('端末に保存できませんでした。空き容量を確認し、元のデータが残っているか確認してください');
-        }
-        state.data = result.data;
+      var previousData = state.data;
+      return (result.images ? ImageStore.getAllImages() : Promise.resolve(null)).then(function (previousImages) {
+        var replaceImages = result.images ? ImageStore.replaceAllImages(result.images) : Promise.resolve(true);
+        return replaceImages.then(function () {
+          if (!Storage.save(result.data, { force: true })) {
+            throw new Error('端末に保存できませんでした。元の本棚データを維持しました');
+          }
+          state.data = result.data;
+        }).catch(function (err) {
+          if (result.images && previousImages) {
+            return ImageStore.replaceAllImages(previousImages).catch(function () {
+              throw new Error((err && err.message ? err.message : '復元に失敗しました') + '。表紙画像の復旧にも失敗しました');
+            }).then(function () { throw err; });
+          }
+          throw err;
+        });
+      }).then(function () {
+        if (state.data !== previousData) return;
       });
     }).then(function () {
       navigate('shelf'); renderCurrentView(); U.showToast('データを復元したよ');
@@ -182,11 +191,12 @@
       U.showToast('復元に失敗したよ: ' + (err && err.message ? err.message : 'ファイルを確認してね'));
     });
   }
-  var ctx = { navigate: navigate, rerenderCurrentView: renderCurrentView, actions: { registerBook: registerBook, registerBookWithPhoto: registerBookWithPhoto, toggleFavorite: toggleFavoriteAction, updateBook: updateBookAction, setMood: setMoodAction, deleteBook: deleteBookAction, saveSettings: saveSettingsAction, exportData: exportDataAction, importData: importDataAction } };
   function registerServiceWorker() { if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); }); }
   function init() {
     Storage = global.RR.Storage; Books = global.RR.Books; Backup = global.RR.Backup; ImageStore = global.RR.ImageStore; U = global.RR.UICommon; Views = global.RR.Views; RRStats = global.RR.Stats; Badges = global.RR.Badges;
-    state.data = Storage.load(); bindNav(); window.addEventListener('hashchange', onHashChange); onHashChange(); registerServiceWorker();
+    state.data = Storage.load(); bindNav(); window.addEventListener('hashchange', onHashChange); onHashChange();
+    if (Storage.hasLoadError && Storage.hasLoadError()) U.showToast('保存データを読み込めませんでした。元データを保護しています。設定からバックアップを復元してください');
+    registerServiceWorker();
   }
   document.addEventListener('DOMContentLoaded', init);
   global.RR = global.RR || {};
