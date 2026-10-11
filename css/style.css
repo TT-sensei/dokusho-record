@@ -311,3 +311,89 @@ button, input, textarea { font: inherit; color: inherit; }
   .rr-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .rr-nav-btn__label { white-space: nowrap; }
 }
+
+
+/* ---------------- 本棚リニューアル：タブレットを主役に ---------------- */
+.rr-shelf { gap: 18px; }
+.rr-shelf-heading {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 8px 2px 2px;
+}
+.rr-shelf-eyebrow {
+  margin: 0 0 3px; color: var(--teal-dark); font-size: .68rem;
+  font-weight: 900; letter-spacing: .14em;
+}
+.rr-shelf-title { margin: 0; font-size: clamp(1.35rem, 2.5vw, 2rem); line-height: 1.3; letter-spacing: -.035em; }
+.rr-shelf-subtitle { margin: 7px 0 0; color: var(--muted); font-size: .88rem; }
+.rr-shelf-total {
+  flex: 0 0 auto; width: 76px; height: 76px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; border-radius: 22px;
+  color: var(--teal-dark); background: #e1eee8; border: 1px solid #c8dfd5;
+}
+.rr-shelf-total strong { font-size: 1.65rem; line-height: 1.1; font-weight: 900; font-variant-numeric: tabular-nums; }
+.rr-shelf-total span { font-size: .72rem; font-weight: 800; }
+.rr-shelf-toolbar { gap: 12px; }
+.rr-search-input {
+  min-height: 50px; padding: 12px 18px; border-radius: 14px;
+  box-shadow: 0 2px 7px rgba(43,33,24,.04);
+}
+.rr-search-input:focus-visible { outline: 3px solid rgba(47,122,110,.28); border-color: var(--teal); }
+.rr-shelf-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.rr-filter-chips { gap: 7px; }
+.rr-chip { min-height: 42px; padding: 8px 15px; touch-action: manipulation; }
+.rr-chip:focus-visible { outline: 3px solid rgba(47,122,110,.28); outline-offset: 2px; }
+.rr-shelf-view-toggle { display: flex; flex: 0 0 auto; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,252,245,.72); }
+.rr-shelf-view-toggle .rr-chip { min-height: 36px; padding: 6px 12px; border-color: transparent; }
+.rr-shelf-view-toggle .rr-chip.is-active { background: var(--teal-dark); border-color: var(--teal-dark); }
+.rr-shelf-stats {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px;
+  margin: 0; padding: 12px 15px; border: 1px solid rgba(227,214,187,.85);
+  border-radius: 14px; background: rgba(255,252,245,.62); font-size: .84rem;
+}
+.rr-shelf-stats strong { color: var(--ink); font-size: 1.02rem; font-variant-numeric: tabular-nums; }
+.rr-shelf-stats__target { margin-left: auto; opacity: 1; color: var(--muted); }
+.rr-shelf-grid { gap: 25px 16px; padding: 4px 4px 16px; }
+.rr-book-card { min-width: 0; padding-bottom: 21px; touch-action: manipulation; }
+.rr-book-card__title { font-size: .76rem; line-height: 1.45; margin-top: 8px; }
+.rr-book-card:active { transform: translateY(1px); }
+.rr-empty { margin: 0; padding: 42px 20px; border: 1px dashed var(--line); border-radius: 18px; background: rgba(255,252,245,.48); }
+
+@media (max-width: 699px) {
+  .rr-shelf-heading { gap: 10px; }
+  .rr-shelf-subtitle { max-width: 24em; font-size: .8rem; }
+  .rr-shelf-total { width: 64px; height: 64px; border-radius: 18px; }
+  .rr-shelf-total strong { font-size: 1.4rem; }
+  .rr-shelf-controls { align-items: flex-start; flex-direction: column; }
+  .rr-filter-chips { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 5px; }
+  .rr-filter-chips .rr-chip { padding: 7px 3px; font-size: .72rem; white-space: nowrap; }
+  .rr-shelf-view-toggle { align-self: flex-end; }
+  .rr-shelf-stats { gap: 6px 12px; padding: 10px 12px; font-size: .78rem; }
+  .rr-shelf-stats__target { margin-left: 0; width: 100%; font-size: .75rem; }
+  .rr-shelf-grid { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px 12px; }
+  .rr-book-card__title { font-size: .68rem; }
+}
+@media (min-width: 700px) {
+  .rr-shelf-toolbar { grid-template-columns: minmax(0,1fr); }
+  .rr-main { padding: 30px clamp(28px, 4vw, 54px) 48px; }
+  .rr-shelf { gap: 22px; }
+  .rr-shelf-heading { padding-top: 6px; }
+  .rr-shelf-controls { align-items: center; }
+  .rr-shelf-stats { gap: 12px 28px; padding: 14px 18px; }
+  .rr-shelf-grid { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 30px 22px; }
+  .rr-book-card__title { font-size: .8rem; }
+}
+@media (min-width: 900px) {
+  .rr-shelf-grid { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 32px 24px; }
+}
+@media (min-width: 1200px) {
+  .rr-shelf-grid { grid-template-columns: repeat(6, minmax(0,1fr)); }
+}
+@media (max-width: 420px) {
+  .rr-shelf-title { font-size: 1.22rem; }
+  .rr-shelf-eyebrow { font-size: .6rem; }
+  .rr-shelf-total { width: 56px; height: 56px; border-radius: 15px; }
+  .rr-shelf-total strong { font-size: 1.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-book-card:active { transform: none; }
+}

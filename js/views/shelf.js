@@ -44,19 +44,26 @@
     var books = Books.sortedNewestFirst(filtered);
     return (
       '<section class="rr-view rr-shelf">' +
+        '<div class="rr-shelf-heading">' +
+          '<div><p class="rr-shelf-eyebrow">MY READING SHELF</p><h1 class="rr-shelf-title">読んだ本を、ここに。</h1>' +
+          '<p class="rr-shelf-subtitle">一冊ずつ、読書の記録を積み重ねよう。</p></div>' +
+          '<div class="rr-shelf-total" aria-label="登録した本 ' + data.books.length + '冊"><strong>' + data.books.length + '</strong><span>冊</span></div>' +
+        '</div>' +
         '<div class="rr-shelf-toolbar">' +
-          '<input type="search" id="rr-shelf-search" class="rr-search-input" placeholder="🔍 タイトル・著者・ISBNで検索" value="' + U.escapeHtml(searchText) + '">' +
-          '<div class="rr-filter-chips">' +
-            FILTERS.map(function (f) {
-              return '<button type="button" class="rr-chip' + (activeFilter === f.key ? ' is-active' : '') + '" data-filter="' + f.key + '">' + f.label + '</button>';
-            }).join('') +
-          '</div>' +
-          '<div class="rr-shelf-view-toggle" role="group" aria-label="本棚の表示方法">' +
-            '<button type="button" class="rr-chip' + (viewMode === 'cover' ? ' is-active' : '') + '" data-view-mode="cover">表紙</button>' +
-            '<button type="button" class="rr-chip' + (viewMode === 'spine' ? ' is-active' : '') + '" data-view-mode="spine">背表紙</button>' +
+          '<input type="search" id="rr-shelf-search" class="rr-search-input" placeholder="タイトル・著者・ISBNで検索" aria-label="本棚を検索" value="' + U.escapeHtml(searchText) + '">' +
+          '<div class="rr-shelf-controls">' +
+            '<div class="rr-filter-chips" role="group" aria-label="本棚の絞り込み">' +
+              FILTERS.map(function (f) {
+                return '<button type="button" class="rr-chip' + (activeFilter === f.key ? ' is-active' : '') + '" data-filter="' + f.key + '">' + f.label + '</button>';
+              }).join('') +
+            '</div>' +
+            '<div class="rr-shelf-view-toggle" role="group" aria-label="本棚の表示方法">' +
+              '<button type="button" class="rr-chip' + (viewMode === 'cover' ? ' is-active' : '') + '" data-view-mode="cover" aria-pressed="' + (viewMode === 'cover') + '">表紙</button>' +
+              '<button type="button" class="rr-chip' + (viewMode === 'spine' ? ' is-active' : '') + '" data-view-mode="spine" aria-pressed="' + (viewMode === 'spine') + '">背表紙</button>' +
+            '</div>' +
           '</div>' +
         '</div>' +
-        '<p class="rr-shelf-stats">今月 ' + monthCount + '冊・今年 ' + yearCount + '冊<span class="rr-shelf-stats__target"> (目標 ' + data.settings.annualTarget + '冊)</span></p>' +
+        '<div class="rr-shelf-stats" aria-live="polite"><span>今月 <strong>' + monthCount + '</strong>冊</span><span>今年 <strong>' + yearCount + '</strong>冊</span><span class="rr-shelf-stats__target">年間目標 ' + data.settings.annualTarget + '冊</span></div>' +
         (books.length === 0 ? renderEmpty(data) : renderGrid(books)) +
       '</section>'
     );
