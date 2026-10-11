@@ -63,18 +63,29 @@
       createdAt: new Date().toISOString()
     };
     data.books.unshift(book);
-    global.RR.Storage.save(data);
+    if (!global.RR.Storage.save(data)) {
+      data.books.shift();
+      return null;
+    }
     return book;
   }
 
   function updateBook(data, id, changes) {
     var book = data.books.find(function (b) { return b.id === id; });
     if (!book) return null;
+    var previous = {};
     Object.keys(changes).forEach(function (key) {
       if (key === 'id' || key === 'createdAt') return;
+      previous[key] = book[key];
       book[key] = changes[key];
     });
-    global.RR.Storage.save(data);
+    if (!global.RR.Storage.save(data)) {
+      Object.keys(previous).forEach(function (key) {
+        if (typeof previous[key] === 'undefined') delete book[key];
+        else book[key] = previous[key];
+      });
+      return null;
+    }
     return book;
   }
 
@@ -82,15 +93,23 @@
     var book = data.books.find(function (b) { return b.id === id; });
     if (!book) return null;
     book.isFavorite = !book.isFavorite;
-    global.RR.Storage.save(data);
+    if (!global.RR.Storage.save(data)) {
+      book.isFavorite = !book.isFavorite;
+      return null;
+    }
     return book;
   }
 
   function deleteBook(data, id) {
     var book = data.books.find(function (b) { return b.id === id; });
+    if (!book) return null;
+    var previousBooks = data.books.slice();
     data.books = data.books.filter(function (b) { return b.id !== id; });
-    global.RR.Storage.save(data);
-    return book || null;
+    if (!global.RR.Storage.save(data)) {
+      data.books = previousBooks;
+      return null;
+    }
+    return book;
   }
 
   function filterBooks(books, filter) {
