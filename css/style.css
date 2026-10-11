@@ -373,6 +373,7 @@ button, input, textarea { font: inherit; color: inherit; }
   .rr-book-card__title { font-size: .68rem; }
 }
 @media (min-width: 700px) {
+  .rr-shelf-toolbar { grid-template-columns: minmax(0,1fr); }
   .rr-main { padding: 30px clamp(28px, 4vw, 54px) 48px; }
   .rr-shelf { gap: 22px; }
   .rr-shelf-heading { padding-top: 6px; }
