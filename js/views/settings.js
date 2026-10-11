@@ -19,6 +19,7 @@
         '<div class="rr-card">' +
           '<p class="rr-card__label">データのバックアップ</p>' +
           '<p class="rr-hint">本棚のデータはこの端末・このブラウザだけに保存されています。機種変更やデータ消去に備えて、ときどきバックアップを保存しておこう。</p>' +
+          '<p class="rr-hint">表紙画像も復元したいときは、保存時に「撮影した表紙画像も含める」を選んでね。</p>' +
           '<label class="rr-field rr-field--checkbox"><input type="checkbox" id="rr-backup-images"><span>撮影した表紙画像も含める(ファイルが大きくなります)</span></label>' +
           '<button type="button" class="rr-btn rr-btn--secondary" data-action="export">💾 データを保存</button>' +
           '<button type="button" class="rr-btn rr-btn--secondary" data-action="import-trigger">📂 データを復元</button>' +
