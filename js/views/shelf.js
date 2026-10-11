@@ -119,7 +119,7 @@
         (book.memo ? '<p class="rr-detail__memo">「' + U.escapeHtml(book.memo) + '」</p>' : '<p class="rr-detail__memo rr-detail__memo--empty">ひとこと感想はまだ書いていません</p>') +
         '<div class="rr-detail__actions">' +
           '<button type="button" class="rr-btn rr-btn--favorite' + (book.isFavorite ? ' is-active' : '') + '" data-action="toggle-fav" data-id="' + book.id + '">' + (book.isFavorite ? '★ お気に入り済み' : '☆ お気に入りにする') + '</button>' +
-          '<button type="button" class="rr-btn rr-btn--secondary" data-action="change-cover" data-id="' + book.id + '">📷 表紙を撮り直す</button>' +
+          '<button type="button" class="rr-btn rr-btn--secondary" data-action="change-cover" data-id="' + book.id + '">📷 表紙を追加・変更</button>' +
           '<button type="button" class="rr-btn rr-btn--ghost" data-action="edit-book" data-id="' + book.id + '">編集する</button>' +
           '<button type="button" class="rr-btn rr-btn--ghost" data-action="detail-close">閉じる</button>' +
           '<button type="button" class="rr-btn rr-btn--danger" data-action="delete-book" data-id="' + book.id + '">この本を削除</button>' +
@@ -141,10 +141,10 @@
     );
   }
 
-  function changeCover(data, id) {
+  function changeCover(data, id, useCamera) {
     var book = data.books.find(function (b) { return b.id === id; });
     if (!book) return;
-    Camera.pickImage(true).then(function (file) {
+    Camera.pickImage(useCamera).then(function (file) {
       if (!file) return;
       return ImageStore.fileToCompressedDataUrl(file).then(function (dataUrl) {
         var imageId = Storage.generateId((book.isbn || 'photo') + '-cover');
@@ -184,7 +184,27 @@
     var fav = modalEl.querySelector('[data-action="toggle-fav"]');
     if (fav) fav.addEventListener('click', function () { ctx.actions.toggleFavorite(id); U.closeModal(); openDetail(data, ctx, id); });
     var coverBtn = modalEl.querySelector('[data-action="change-cover"]');
-    if (coverBtn) coverBtn.addEventListener('click', function () { changeCover(data, id); });
+    if (coverBtn) coverBtn.addEventListener('click', function () {
+      var choiceModal = U.openModal(
+        '<div class="rr-detail"><h2 class="rr-detail__title">表紙を追加・変更</h2>' +
+        '<p class="rr-hint">表紙はいつでも追加できます。</p>' +
+        '<div class="rr-detail__actions">' +
+        '<button type="button" class="rr-btn rr-btn--primary" data-cover-choice="camera">📷 カメラで撮る</button>' +
+        '<button type="button" class="rr-btn rr-btn--secondary" data-cover-choice="library">🖼 写真から選ぶ</button>' +
+        '<button type="button" class="rr-btn rr-btn--ghost" data-action="detail-close">キャンセル</button>' +
+        '</div></div>'
+      );
+      if (!choiceModal) return;
+      choiceModal.querySelectorAll('[data-cover-choice]').forEach(function (choice) {
+        choice.addEventListener('click', function () {
+          var useCamera = choice.getAttribute('data-cover-choice') === 'camera';
+          U.closeModal();
+          changeCover(data, id, useCamera);
+        });
+      });
+      var cancel = choiceModal.querySelector('[data-action="detail-close"]');
+      if (cancel) cancel.addEventListener('click', U.closeModal);
+    });
     var editBtn = modalEl.querySelector('[data-action="edit-book"]');
     if (editBtn) editBtn.addEventListener('click', function () {
       U.closeModal();
