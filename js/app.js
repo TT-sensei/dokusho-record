@@ -189,6 +189,7 @@
       U.showToast('復元に失敗したよ: ' + (err && err.message ? err.message : 'ファイルを確認してね'));
     });
   }
+  var ctx = { navigate: navigate, rerenderCurrentView: renderCurrentView, actions: { registerBook: registerBook, registerBookWithPhoto: registerBookWithPhoto, toggleFavorite: toggleFavoriteAction, updateBook: updateBookAction, setMood: setMoodAction, deleteBook: deleteBookAction, saveSettings: saveSettingsAction, exportData: exportDataAction, importData: importDataAction } };
   function registerServiceWorker() { if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); }); }
   function init() {
     Storage = global.RR.Storage; Books = global.RR.Books; Backup = global.RR.Backup; ImageStore = global.RR.ImageStore; U = global.RR.UICommon; Views = global.RR.Views; RRStats = global.RR.Stats; Badges = global.RR.Badges;
