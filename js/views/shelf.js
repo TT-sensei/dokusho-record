@@ -174,11 +174,11 @@
     if (close) close.addEventListener('click', U.closeModal);
     modalEl.querySelectorAll('[data-mood]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        ctx.actions.setMood(id, btn.getAttribute('data-mood'));
+        var saved = ctx.actions.setMood(id, btn.getAttribute('data-mood'));
         U.closeModal();
         openDetail(data, ctx, id);
         ctx.rerenderCurrentView();
-        U.showToast('感想を記録したよ');
+        if (saved) U.showToast('感想を記録したよ');
       });
     });
     var fav = modalEl.querySelector('[data-action="toggle-fav"]');
@@ -213,13 +213,14 @@
       if (editClose) editClose.addEventListener('click', U.closeModal);
       var save = editModal.querySelector('[data-action="save-edit"]');
       if (save) save.addEventListener('click', function () {
-        ctx.actions.updateBook(id, {
+        var saved = ctx.actions.updateBook(id, {
           title: document.getElementById('rr-edit-title').value.trim() || book.title,
           author: document.getElementById('rr-edit-author').value.trim(),
           readDate: document.getElementById('rr-edit-date').value || book.readDate,
           memo: document.getElementById('rr-edit-memo').value.trim()
         });
-        U.closeModal(); U.showToast('編集を保存したよ');
+        U.closeModal();
+        if (saved) U.showToast('編集を保存したよ');
       });
     });
     var del = modalEl.querySelector('[data-action="delete-book"]');

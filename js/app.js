@@ -80,7 +80,9 @@
 
   function registerBook(input) {
     var beforeBooks = state.data.books.slice();
-    var book = Books.addBook(state.data, input); afterRegister(beforeBooks, book);
+    var book = Books.addBook(state.data, input);
+    if (!book) { U.showToast('保存できなかったよ。端末の空き容量を確認してね'); return; }
+    afterRegister(beforeBooks, book);
   }
   function registerBookWithPhoto(input) {
     var beforeBooks = state.data.books.slice();
@@ -88,7 +90,13 @@
     ImageStore.saveImageFromDataUrl(imageId, input._previewDataUrl).then(function () {
       var bookInput = Object.assign({}, input, { coverSource: 'user', coverImageId: imageId });
       delete bookInput._previewDataUrl;
-      var book = Books.addBook(state.data, bookInput); afterRegister(beforeBooks, book);
+      var book = Books.addBook(state.data, bookInput);
+      if (!book) {
+        ImageStore.deleteImage(imageId);
+        U.showToast('本棚に保存できなかったよ。端末の空き容量を確認してね');
+        return;
+      }
+      afterRegister(beforeBooks, book);
     }).catch(function (err) { U.showToast('画像の保存に失敗したよ: ' + (err && err.message ? err.message : '')); });
   }
   function afterRegister(beforeBooks, book) {
@@ -107,7 +115,10 @@
     if (!modal) { navigate('shelf'); return; }
     modal.querySelectorAll('[data-mood]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        Books.updateBook(state.data, bookId, { mood: btn.getAttribute('data-mood') });
+        if (!Books.updateBook(state.data, bookId, { mood: btn.getAttribute('data-mood') })) {
+          U.showToast('保存できなかったよ。端末の空き容量を確認してね');
+          return;
+        }
         modal.querySelectorAll('[data-mood]').forEach(function (b) { b.classList.toggle('is-selected', b === btn); });
         U.showToast('感想を記録したよ');
       });
@@ -116,15 +127,42 @@
       U.closeModal(); navigate('shelf'); checkGoalAchievement(beforeBooks, state.data.books); checkBadgeAchievement(beforeBooks, state.data.books);
     });
   }
-  function toggleFavoriteAction(id) { Books.toggleFavorite(state.data, id); }
-  function updateBookAction(id, changes) { Books.updateBook(state.data, id, changes); renderCurrentView(); }
-  function setMoodAction(id, mood) { if (!U.getMood(mood)) return; Books.updateBook(state.data, id, { mood: mood }); U.showToast('感想を記録したよ'); }
+  function toggleFavoriteAction(id) {
+    if (!Books.toggleFavorite(state.data, id)) U.showToast('保存できなかったよ。端末の空き容量を確認してね');
+  }
+  function updateBookAction(id, changes) {
+    var updated = Books.updateBook(state.data, id, changes);
+    if (!updated) U.showToast('保存できなかったよ。端末の空き容量を確認してね');
+    renderCurrentView();
+    return !!updated;
+  }
+  function setMoodAction(id, mood) {
+    if (!U.getMood(mood)) return false;
+    if (!Books.updateBook(state.data, id, { mood: mood })) {
+      U.showToast('保存できなかったよ。端末の空き容量を確認してね');
+      return false;
+    }
+    U.showToast('感想を記録したよ');
+    return true;
+  }
   function deleteBookAction(id) {
-    var book = state.data.books.find(function (b) { return b.id === id; }); Books.deleteBook(state.data, id);
-    if (book && book.coverSource === 'user' && book.coverImageId) ImageStore.deleteImage(book.coverImageId);
+    var book = Books.deleteBook(state.data, id);
+    if (!book) { U.showToast('削除を保存できなかったよ。端末の空き容量を確認してね'); return; }
+    if (book.coverSource === 'user' && book.coverImageId) ImageStore.deleteImage(book.coverImageId);
     renderCurrentView(); U.showToast('本棚から削除したよ');
   }
-  function saveSettingsAction(settings) { state.data.settings.annualTarget = settings.annualTarget; state.data.settings.monthlyTarget = settings.monthlyTarget; Storage.save(state.data); }
+  function saveSettingsAction(settings) {
+    var previous = { annualTarget: state.data.settings.annualTarget, monthlyTarget: state.data.settings.monthlyTarget };
+    state.data.settings.annualTarget = settings.annualTarget;
+    state.data.settings.monthlyTarget = settings.monthlyTarget;
+    if (!Storage.save(state.data)) {
+      state.data.settings.annualTarget = previous.annualTarget;
+      state.data.settings.monthlyTarget = previous.monthlyTarget;
+      U.showToast('設定を保存できなかったよ。端末の空き容量を確認してね');
+      return false;
+    }
+    return true;
+  }
   function exportDataAction(includeImages) { Backup.exportData(state.data, includeImages).then(function () { U.showToast('バックアップを保存したよ'); }).catch(function (err) { U.showToast('バックアップに失敗したよ: ' + (err && err.message ? err.message : '')); }); }
   function importDataAction(file) {
     Backup.importData(file).then(function (result) {
