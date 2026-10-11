@@ -115,7 +115,10 @@
     if (!modal) { navigate('shelf'); return; }
     modal.querySelectorAll('[data-mood]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        Books.updateBook(state.data, bookId, { mood: btn.getAttribute('data-mood') });
+        if (!Books.updateBook(state.data, bookId, { mood: btn.getAttribute('data-mood') })) {
+          U.showToast('保存できなかったよ。端末の空き容量を確認してね');
+          return;
+        }
         modal.querySelectorAll('[data-mood]').forEach(function (b) { b.classList.toggle('is-selected', b === btn); });
         U.showToast('感想を記録したよ');
       });
@@ -128,8 +131,10 @@
     if (!Books.toggleFavorite(state.data, id)) U.showToast('保存できなかったよ。端末の空き容量を確認してね');
   }
   function updateBookAction(id, changes) {
-    if (!Books.updateBook(state.data, id, changes)) U.showToast('保存できなかったよ。端末の空き容量を確認してね');
+    var updated = Books.updateBook(state.data, id, changes);
+    if (!updated) U.showToast('保存できなかったよ。端末の空き容量を確認してね');
     renderCurrentView();
+    return !!updated;
   }
   function setMoodAction(id, mood) {
     if (!U.getMood(mood)) return false;
