@@ -182,8 +182,6 @@
           }
           throw err;
         });
-      }).then(function () {
-        if (state.data !== previousData) return;
       });
     }).then(function () {
       navigate('shelf'); renderCurrentView(); U.showToast('データを復元したよ');
