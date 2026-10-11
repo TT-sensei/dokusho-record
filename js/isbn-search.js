@@ -29,6 +29,13 @@
     return isNaN(number) ? 0 : number;
   }
 
+  function parsePrice(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    var normalized = toHalfWidthDigits(value).replace(/,/g, '').replace(/[^0-9.\-]/g, '');
+    var amount = Number(normalized);
+    return Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 0;
+  }
+
   function cleanAuthorName(value) {
     if (!value) return '';
     var cleaned = String(value)
@@ -109,7 +116,9 @@
         var creators = getAllXmlText(recordData, 'creator');
         var extents = getAllXmlText(recordData, 'extent');
         var formats = getAllXmlText(recordData, 'format');
-        var identifiers = getAllXmlText(recordData, 'identifier');
+        var identifiers = getAllXmlText(recordData, 'identifier')
+          .concat(getAllXmlText(recordData, 'isbn'))
+          .concat(getAllXmlText(recordData, 'ISBN'));
         var isExactIsbn = identifiers.some(function (identifier) {
           return toHalfWidthDigits(identifier).replace(/[^0-9Xx]/g, '').indexOf(isbn13) !== -1;
         });
@@ -182,7 +191,7 @@
             for (var p = 0; p < prices.length; p++) {
               var amount = prices[p] && prices[p].PriceAmount;
               var currency = prices[p] && prices[p].CurrencyCode;
-              var price = extractCleanNum(amount);
+              var price = parsePrice(amount);
               if (price > 0 && (!currency || currency === 'JPY')) { result.price = price; break; }
             }
           }
@@ -211,8 +220,7 @@
 
         var sale = item.saleInfo && item.saleInfo.listPrice;
         if (sale && (!sale.currencyCode || sale.currencyCode === 'JPY')) {
-          var amount = Number(sale.amount);
-          result.price = Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 0;
+          result.price = parsePrice(sale.amount);
         }
         result.found = Boolean(result.title || result.author || result.coverUrl || result.pageCount || result.price);
         return result;
