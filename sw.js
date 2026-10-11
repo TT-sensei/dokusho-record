@@ -4,7 +4,7 @@
  * 本棚・登録済みデータ・設定などを利用できるようにする。
  * ============================================================ */
 
-var CACHE_NAME = 'dokusho-record-cache-v8';
+var CACHE_NAME = 'dokusho-record-cache-v9';
 
 var APP_SHELL = [
   './',
@@ -12,6 +12,9 @@ var APP_SHELL = [
   './manifest.json',
   './css/style.css',
   './css/responsive.css',
+  './css/spine.css',
+  './css/badges.css',
+  './css/navi.css',
   './js/stats.js',
   './js/storage.js',
   './js/books.js',
@@ -21,9 +24,13 @@ var APP_SHELL = [
   './js/camera.js',
   './js/backup.js',
   './js/ui-common.js',
+  './js/navi.js',
+  './js/badges.js',
   './js/views/shelf.js',
   './js/views/add.js',
   './js/views/settings.js',
+  './js/views/badges.js',
+  './js/compat-shelf.js',
   './js/app.js',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
