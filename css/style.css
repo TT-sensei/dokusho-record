@@ -442,3 +442,15 @@ button, input, textarea { font: inherit; color: inherit; }
   .rr-scan-frame { aspect-ratio: 16 / 9; max-height: 460px; }
   .rr-scan-status { font-size: .95rem; }
 }
+
+
+/* 表紙画像が外部データベースから取得できなかった場合も、理由と次の手段を表示 */
+.rr-result-cover--missing::after {
+  content: "表紙画像を取得できませんでした。撮影・写真選択でも登録できます。";
+  display: block;
+  max-width: 34em;
+  margin: 10px auto 0;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.6;
+}

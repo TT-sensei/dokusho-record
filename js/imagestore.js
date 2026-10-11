@@ -88,6 +88,26 @@
     });
   }
 
+  // すでにプレビュー用dataURLになっている画像も、保存前に縮小・圧縮する。
+  function saveImageFromDataUrl(id, dataUrl) {
+    return new Promise(function (resolve, reject) {
+      if (!dataUrl || typeof dataUrl !== 'string') {
+        reject(new Error('画像データがありません'));
+        return;
+      }
+      var img = new Image();
+      img.onerror = function () { reject(new Error('画像を読み込めませんでした')); };
+      img.onload = function () {
+        try {
+          saveImage(id, drawToCompressedDataUrl(img)).then(resolve, reject);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.src = dataUrl;
+    });
+  }
+
   function getImage(id) {
     if (!id) return Promise.resolve(null);
     return openDB().then(function (db) {
@@ -136,6 +156,7 @@
   global.RR.ImageStore = {
     fileToCompressedDataUrl: fileToCompressedDataUrl,
     saveImage: saveImage,
+    saveImageFromDataUrl: saveImageFromDataUrl,
     getImage: getImage,
     deleteImage: deleteImage,
     getAllImages: getAllImages

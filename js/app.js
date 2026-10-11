@@ -85,7 +85,7 @@
   function registerBookWithPhoto(input) {
     var beforeBooks = state.data.books.slice();
     var imageId = Storage.generateId(input.isbn || 'photo');
-    ImageStore.saveImage(imageId, input._previewDataUrl).then(function () {
+    ImageStore.saveImageFromDataUrl(imageId, input._previewDataUrl).then(function () {
       var bookInput = Object.assign({}, input, { coverSource: 'user', coverImageId: imageId });
       delete bookInput._previewDataUrl;
       var book = Books.addBook(state.data, bookInput); afterRegister(beforeBooks, book);
