@@ -74,7 +74,7 @@
   function extractPageCount(values) {
     for (var i = 0; i < values.length; i++) {
       var text = toHalfWidthDigits(values[i]);
-      var match = text.match(/(?:全\s*)?(\d{1,5})\s*(?:p\.?|頁|ページ)\b?/i);
+      var match = text.match(/(?:全\s*)?(\d{1,5})\s*(?:p\.?|頁|ページ)/i);
       if (match) {
         var count = parseInt(match[1], 10);
         if (count > 0) return count;
