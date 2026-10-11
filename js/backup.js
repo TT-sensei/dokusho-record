@@ -58,10 +58,29 @@
           return;
         }
         try {
-          // 旧形式(dataキーを持たない = data自体がトップレベル)にも一応対応する
+          // 旧形式(dataキーを持たない = data自体がトップレベル)にも対応する。
+          // books配列がないJSONをバックアップと誤認して本棚を空にしない。
           var rawData = (parsed && typeof parsed === 'object' && parsed.data) ? parsed.data : parsed;
+          if (!rawData || typeof rawData !== 'object' || !Array.isArray(rawData.books)) {
+            reject(new Error('本棚データが見つかりません。正しいバックアップファイルを選んでください'));
+            return;
+          }
+          var images = null;
+          if (parsed && typeof parsed === 'object' && parsed.images !== undefined) {
+            if (!parsed.images || typeof parsed.images !== 'object' || Array.isArray(parsed.images)) {
+              reject(new Error('表紙画像データの形式が正しくありません'));
+              return;
+            }
+            images = parsed.images;
+            var imageIds = Object.keys(images);
+            for (var i = 0; i < imageIds.length; i++) {
+              if (typeof images[imageIds[i]] !== 'string' || images[imageIds[i]].indexOf('data:image/') !== 0) {
+                reject(new Error('表紙画像データの形式が正しくありません'));
+                return;
+              }
+            }
+          }
           var normalized = global.RR.Storage.migrate(rawData);
-          var images = (parsed && typeof parsed === 'object' && parsed.images && typeof parsed.images === 'object') ? parsed.images : null;
           resolve({ data: normalized, images: images });
         } catch (e) {
           reject(new Error('データの復元処理に失敗しました'));
