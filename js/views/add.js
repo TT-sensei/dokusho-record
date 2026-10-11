@@ -176,7 +176,9 @@
         '<h2 class="rr-add-heading">📷 表紙を登録</h2>' +
         (vs.photoBusy ? renderLoading() :
           vs.previewDataUrl ? renderPhotoConfirm() :
-          '<div class="rr-card rr-card--center"><p class="rr-hint">写真を選んでね</p></div>'
+          '<div class="rr-card rr-card--center"><p class="rr-hint">表紙を撮影するか、端末に保存した写真を選んでください。</p>' +
+            '<button type="button" class="rr-btn rr-btn--primary" data-action="photo-retry-camera">📷 カメラで撮る</button>' +
+            '<button type="button" class="rr-btn rr-btn--ghost" data-action="photo-retry-library">🖼 写真から選ぶ</button></div>'
         ) +
       '</section>'
     );
@@ -374,6 +376,11 @@
   }
 
   function bindPhotoHandlers(container, ctx) {
+    var retryCameraBtn = container.querySelector('[data-action="photo-retry-camera"]');
+    if (retryCameraBtn) retryCameraBtn.addEventListener('click', function () { startPhotoFlow(true); });
+    var retryLibraryBtn = container.querySelector('[data-action="photo-retry-library"]');
+    if (retryLibraryBtn) retryLibraryBtn.addEventListener('click', function () { startPhotoFlow(false); });
+
     var lookupBtn = container.querySelector('[data-action="photo-lookup"]');
     if (lookupBtn) lookupBtn.addEventListener('click', function () {
       var isbnVal = document.getElementById('rr-p-isbn').value.replace(/[^0-9Xx]/g, '');
@@ -419,7 +426,7 @@
         entryMethod: vs.entryMethodForPhoto || 'photo',
         _previewDataUrl: vs.previewDataUrl
       };
-      ctx.actions.registerBook(input);
+      ctx.actions.registerBookWithPhoto(input);
     });
   }
 
