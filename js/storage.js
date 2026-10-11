@@ -80,6 +80,12 @@
       if (!raw || typeof raw !== 'object' || !Array.isArray(raw.books)) {
         throw new Error('保存データの形式が正しくありません');
       }
+      if (raw.books.some(function (book) {
+        return !book || typeof book !== 'object' || Array.isArray(book) ||
+          typeof book.title !== 'string' || !book.title.trim();
+      })) {
+        throw new Error('本の記録に不備があるため、元データを保護します');
+      }
     } catch (err) {
       loadError = true;
       console.error('[magazine-rack] 保存データを読み込めません。元データを保護します。', err);
