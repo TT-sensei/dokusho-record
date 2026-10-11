@@ -304,3 +304,10 @@ button, input, textarea { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+
+/* 4つの画面をスマートフォンの下部ナビに均等配置する */
+@media (max-width: 699px) {
+  .rr-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rr-nav-btn__label { white-space: nowrap; }
+}
