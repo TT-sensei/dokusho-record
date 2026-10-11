@@ -43,8 +43,9 @@
         U.showToast('1以上の数字を入力してね');
         return;
       }
-      ctx.actions.saveSettings({ annualTarget: annual, monthlyTarget: monthly });
-      U.showToast('目標を更新したよ');
+      if (ctx.actions.saveSettings({ annualTarget: annual, monthlyTarget: monthly })) {
+        U.showToast('目標を更新したよ');
+      }
     });
 
     var exportBtn = container.querySelector('[data-action="export"]');
