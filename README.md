@@ -6,6 +6,8 @@
 
 **公開ページ：** https://tt-sensei.github.io/dokusho-record/
 
+**対象：** 小学1〜6年生（読書記録）
+
 ## できること
 
 - **本棚**：登録した本を表紙または背表紙で表示
@@ -51,7 +53,7 @@ ISBN検索では外部の書誌情報サービスに問い合わせます。検�
 - `localStorage`：読書記録・設定の保存
 - `IndexedDB`：ユーザーが追加した表紙画像の保存
 - Service Worker / Web App Manifest：キャッシュとホーム画面追加への対応
-- QuaggaJS：ISBNバーコードの読み取り
+- QuaggaJS 0.12.1（js/quagga.min.js としてローカル配置）：ISBNバーコードの読み取り
 - ISBN書誌情報：国立国会図書館サーチ（NDLサーチ）を優先し、openBD、Google Booksの順に不足項目を補完。NDLは公式SRU APIでISBN完全一致検索
 
 ビルド工程や独自のバックエンドはありません。公開ページを開いて利用できます。
